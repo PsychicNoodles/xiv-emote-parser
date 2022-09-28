@@ -5,6 +5,7 @@ use super::{props::LogMessageProps, EmoteText, EmoteTextError, Rule, TargetMessa
 // certain rules must be followed by other specific rules
 enum PrevRule {
     TagName,
+    FuncName,
 }
 
 fn process_pairs(
@@ -20,10 +21,8 @@ fn process_pairs(
             // next iteration should naturally exit
             Rule::EOI => {}
             Rule::text => r.push_targets(targets, p.as_str()),
-            Rule::tag_name => {
-                prev = Some(PrevRule::TagName);
-            }
-            Rule::func_name => todo!(),
+            Rule::tag_name => prev = Some(PrevRule::TagName),
+            Rule::func_name => prev = Some(PrevRule::FuncName),
             Rule::param_num => todo!(),
             Rule::param_obj => todo!(),
             Rule::open_tag => todo!(),
@@ -39,6 +38,11 @@ fn process_pairs(
             Rule::tag_clickable => todo!(),
             Rule::tag_sheet => todo!(),
             Rule::tag_sheet_en => todo!(),
+
+            // functions
+            Rule::func_equal => todo!(),
+            Rule::func_obj_param => todo!(),
+            Rule::func_player_param => todo!(),
         }
     }
 
