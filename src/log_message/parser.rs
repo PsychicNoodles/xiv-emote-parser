@@ -1,47 +1,41 @@
 use pest::iterators::Pairs;
+use pest_consume::Parser;
 
-use super::{props::LogMessageProps, EmoteText, EmoteTextError, Rule, TargetMessages};
+use super::{
+    ast::types::MessagePart, props::LogMessageProps, EmoteText, EmoteTextError, LogMessageParser,
+    Rule, TargetMessages,
+};
 
-type Result = std::result::Result<EmoteText, EmoteTextError>;
+type EmoteTextResult = std::result::Result<EmoteText, EmoteTextError>;
+
+pub fn process_log_message(log_msg: &str, params: LogMessageProps) -> EmoteTextResult {
+    let mut emote_text = EmoteText::new();
+    let targets = TargetMessages::new();
+
+    let root = LogMessageParser::parse(Rule::message, log_msg)
+        .map_err(EmoteTextError::ParseError)?
+        .single()
+        .map_err(EmoteTextError::AstError)?;
+    let message = LogMessageParser::message(root).map_err(EmoteTextError::AstError)?;
+
+    for part in message.0 {
+        match part {
+            MessagePart::Element(_) => todo!(),
+            MessagePart::Text(t) => emote_text.push_all(&t),
+        }
+    }
+
+    todo!()
+}
 
 fn process_pairs(
     mut pairs: Pairs<Rule>,
     params: LogMessageProps,
     targets: TargetMessages,
-) -> Result {
+) -> EmoteTextResult {
     let mut r = EmoteText::new();
 
-    while let Some(p) = pairs.next() {
-        // match p.as_rule() {
-        //     // next iteration should naturally exit
-        //     Rule::EOI => {}
-        //     Rule::text => r.push_targets(targets, p.as_str()),
-        //     Rule::tag_name => r = process_tag(&mut pairs, &params, targets, r)?,
-        //     Rule::func_name => r = process_func(&mut pairs, &params, targets, r)?,
-        //     Rule::param_num => todo!(),
-        //     Rule::param_obj => todo!(),
-        //     Rule::open_tag => todo!(),
-        //     Rule::auto_closing_tag => todo!(),
-        //     Rule::close_tag => todo!(),
-        //     Rule::if_else_element => todo!(),
-        //     Rule::element => todo!(),
-        //     Rule::function => todo!(),
-        //     Rule::param => todo!(),
-        //     Rule::message => todo!(),
-
-        //     // processed during
-
-        //     // tags
-        //     Rule::tag_clickable => todo!(),
-        //     Rule::tag_sheet => todo!(),
-        //     Rule::tag_sheet_en => todo!(),
-
-        //     // functions
-        //     Rule::func_equal => todo!(),
-        //     Rule::func_obj_param => todo!(),
-        //     Rule::func_player_param => todo!(),
-        // }
-    }
+    while let Some(p) = pairs.next() {}
 
     todo!()
 }
@@ -51,7 +45,7 @@ fn process_tag(
     params: &LogMessageProps,
     targets: TargetMessages,
     emote_text: EmoteText,
-) -> Result {
+) -> EmoteTextResult {
     todo!()
 }
 
@@ -60,6 +54,6 @@ fn process_func(
     params: &LogMessageProps,
     targets: TargetMessages,
     emote_text: EmoteText,
-) -> Result {
+) -> EmoteTextResult {
     todo!()
 }
