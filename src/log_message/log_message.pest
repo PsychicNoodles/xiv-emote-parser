@@ -23,7 +23,8 @@ auto_closing_tag = { "<" ~ tag_name ~ ("(" ~ param ~ ("," ~ param)* ~ ")")? ~ "/
 close_tag = { "</" ~ tag_name ~ ">" }
 
 // elements
-if_else_element = { "<If(" ~ param ~ ")>" ~ (param | text) ~ "<Else/>" ~ (param | text) ~ "</If>" }
+if_else_then = { param | text }
+if_else_element = { "<If(" ~ param ~ ")>" ~ if_else_then ~ "<Else/>" ~ if_else_then ~ "</If>" }
 element = {
   if_else_element |
   open_tag ~ text? ~ close_tag |
@@ -33,4 +34,5 @@ element = {
 // high level types
 function = { func_name ~ "(" ~ param ~ ("," ~ param)* ~ ")" }
 param = { element | param_num | function | param_obj }
-message = { SOI ~ (element | text)+ ~ EOI }
+message_part = { element | text }
+message = { SOI ~ message_part+ ~ EOI }

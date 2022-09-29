@@ -1,7 +1,7 @@
-use pest::Parser;
-use pest_derive::Parser;
+use pest_consume::Parser;
 use thiserror::Error;
 
+mod ast;
 mod parser;
 mod props;
 mod types;
@@ -77,10 +77,13 @@ mod test {
     fn can_parse_en() {
         let log_msg = "<Clickable(<If(Equal(ObjectParameter(1),ObjectParameter(2)))>you<Else/><If(PlayerParameter(7))><SheetEn(ObjStr,2,PlayerParameter(7),1,1)/><Else/>ObjectParameter(2)</If></If>)/> <If(Equal(ObjectParameter(1),ObjectParameter(2)))>look<Else/>looks</If> at <If(Equal(ObjectParameter(1),ObjectParameter(3)))><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>you</If><Else/><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>ObjectParameter(3)</If></If> in surprise.";
 
-        let parse = LogMessageParser::parse(Rule::message, log_msg);
+        let parse = LogMessageParser::parse(Rule::message, log_msg).unwrap();
         println!("{:#?}", parse);
+        let root = parse.single().unwrap();
+        let message = LogMessageParser::message(root);
+        println!("{:#?}", message);
 
-        assert!(parse.is_ok(), "did not parse correctly");
+        assert!(message.is_ok(), "did not parse correctly");
     }
 
     #[test]
