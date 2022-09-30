@@ -25,7 +25,7 @@ impl LogMessageParser {
         FuncName::from_str(input.as_str()).map_err(|e| input.error(e))
     }
 
-    fn param_num(input: Node) -> Result<u64> {
+    fn param_num(input: Node) -> Result<u32> {
         input.as_str().parse().map_err(|e| input.error(e))
     }
 

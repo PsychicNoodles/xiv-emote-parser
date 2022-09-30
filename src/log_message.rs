@@ -35,7 +35,7 @@ impl EmoteText {
         }
     }
 
-    fn push_targets(&mut self, targets: TargetMessages, s: &str) {
+    fn push_targets(&mut self, targets: &TargetMessages, s: &str) {
         if targets.you_untarget {
             self.you_untarget.push_str(s);
         }

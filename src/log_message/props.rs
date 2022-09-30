@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use super::types::Gender;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 #[error("Invalid parameters for log message var")]
 pub struct LogMessageVarError;
 
@@ -70,9 +70,10 @@ impl Player {
 }
 
 /// PlayerParameter returns different types depending on its param
-pub enum PParam {
+#[derive(Debug, Clone)]
+pub enum PParam<'a> {
     /// 7, 8
-    Player(Option<Player>),
+    Player(Option<&'a Player>),
     /// 5
     IsFemale(bool),
 }
@@ -98,9 +99,9 @@ impl PlayerProp {
     fn at(&self, ind: u32) -> Result<PParam> {
         match ind {
             // origin player info
-            7 => Ok(PParam::Player(self.origin.clone())),
+            7 => Ok(PParam::Player(self.origin.as_ref())),
             // target player info (if targetted)
-            8 => Ok(PParam::Player(self.target.clone())),
+            8 => Ok(PParam::Player(self.target.as_ref())),
             // is origin player female?
             // in en at least, second-person pronouns are ungendered (yourself), and
             // PlayerParameter(5) is seemingly only used when not referring to the player
@@ -131,9 +132,9 @@ fn sheet_en(p1: u32, player: Player, p3: u32, p4: u32) -> Result<String> {
 //     BNpcName,
 // }
 
-pub enum SheetParam {
+pub enum SheetParam<'a> {
     Number(u32),
-    PParam(PParam),
+    PParam(PParam<'a>),
 }
 
 impl LogMessageProps {
