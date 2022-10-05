@@ -1,6 +1,8 @@
 use pest_consume::Parser;
 use thiserror::Error;
 
+use self::ast::types::EmoteTextProcessError;
+
 mod ast;
 mod parser;
 mod props;
@@ -35,7 +37,7 @@ impl EmoteText {
         }
     }
 
-    fn push_targets(&mut self, targets: &TargetMessages, s: &str) {
+    fn push_targets(&mut self, targets: &Targets, s: &str) {
         if targets.you_untarget {
             self.you_untarget.push_str(s);
         }
@@ -63,7 +65,7 @@ impl EmoteText {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct TargetMessages {
+struct Targets {
     you_untarget: bool,
     you_target_other: bool,
     other_target_you: bool,
@@ -71,9 +73,9 @@ struct TargetMessages {
     other_untarget: bool,
 }
 
-impl TargetMessages {
-    fn new() -> TargetMessages {
-        TargetMessages {
+impl Targets {
+    fn new() -> Targets {
+        Targets {
             you_untarget: true,
             you_target_other: true,
             other_target_you: true,
@@ -83,6 +85,18 @@ impl TargetMessages {
     }
 }
 
+// #[derive(Debug, Clone)]
+// struct TargetedMessage {
+//     targets: Targets,
+//     text: String,
+// }
+
+// impl TargetedMessage {
+//     fn new(targets: Targets, text: String) -> TargetedMessage {
+//         TargetedMessage { targets, text }
+//     }
+// }
+
 #[derive(Debug, Error)]
 pub enum EmoteTextError {
     #[error("No log message found by parser")]
@@ -91,9 +105,16 @@ pub enum EmoteTextError {
     AstError(#[source] pest_consume::Error<Rule>),
     #[error("Could not access parsed log message")]
     MessageParseError,
+    #[error("Error while processing log message ast")]
+    ProcessError(#[from] EmoteTextProcessError),
 }
 
 mod test {
+    use crate::log_message::{
+        props::{LogMessageProps, ObjectProp, Player, PlayerProp},
+        types::Gender,
+    };
+
     use super::*;
     #[test]
     fn can_parse_en() {
@@ -119,5 +140,28 @@ mod test {
         println!("{:#?}", message);
 
         assert!(message.is_ok(), "did not parse correctly");
+    }
+
+    #[test]
+    fn can_parse_en_with_ast() {
+        let log_msg = "<Clickable(<If(Equal(ObjectParameter(1),ObjectParameter(2)))>you<Else/><If(PlayerParameter(7))><SheetEn(ObjStr,2,PlayerParameter(7),1,1)/><Else/>ObjectParameter(2)</If></If>)/> <If(Equal(ObjectParameter(1),ObjectParameter(2)))>look<Else/>looks</If> at <If(Equal(ObjectParameter(1),ObjectParameter(3)))><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>you</If><Else/><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>ObjectParameter(3)</If></If> in surprise.";
+
+        let parse = LogMessageParser::parse(Rule::message, log_msg).unwrap();
+        println!("{:#?}", parse);
+        let root = parse.single().unwrap();
+        let message = LogMessageParser::message(root).unwrap();
+
+        let text = message.process_string(&LogMessageProps::new(
+            ObjectProp::new("K'haldru Alaba", "K'haldru Alaba", Some("Puruo Jelly")),
+            PlayerProp::new(
+                Some(Player::new("K'haldru Alaba", "Asura", Gender::Female)),
+                Some(Player::new("Puruo Jelly", "Asura", Gender::Male)),
+                Gender::Female,
+            ),
+        ));
+
+        assert!(text.is_ok(), "did not parse correctly");
+
+        println!("{}", text.unwrap());
     }
 }

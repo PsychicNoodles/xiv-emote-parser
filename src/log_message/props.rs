@@ -29,8 +29,17 @@ impl ObjectProp {
     /// me: current player character
     /// origin: origin of the message
     /// target: target of the message
-    pub fn new(me: String, origin: String, target: Option<String>) -> ObjectProp {
-        ObjectProp { me, origin, target }
+    pub fn new<M, O, T>(me: M, origin: O, target: Option<T>) -> ObjectProp
+    where
+        M: ToString,
+        O: ToString,
+        T: ToString,
+    {
+        ObjectProp {
+            me: me.to_string(),
+            origin: origin.to_string(),
+            target: target.map(|s| s.to_string()),
+        }
     }
 
     fn at(&self, ind: u32) -> Result<&String> {
@@ -51,7 +60,7 @@ pub struct PlayerProp {
 }
 
 /// used by Sheets as a reference to a particular player
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
     name: String,
     world: String,
@@ -60,22 +69,26 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(name: String, world: String, gender: Gender) -> Player {
+    pub fn new<N, W>(name: N, world: W, gender: Gender) -> Player
+    where
+        N: ToString,
+        W: ToString,
+    {
         Player {
-            name,
-            world,
+            name: name.to_string(),
+            world: world.to_string(),
             gender,
         }
     }
 }
 
 /// PlayerParameter returns different types depending on its param
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PParam<'a> {
     /// 7, 8
     Player(Option<&'a Player>),
     /// 5
-    IsFemale(bool),
+    Bool(bool),
 }
 
 impl PlayerProp {
@@ -107,7 +120,7 @@ impl PlayerProp {
             // PlayerParameter(5) is seemingly only used when not referring to the player
             // and if origin is not a player as a sort of default (assuming that
             // PlayerParameter(5) is not where target NPC gender info is stored)
-            5 => Ok(PParam::IsFemale(self.player_gender == Gender::Female)),
+            5 => Ok(PParam::Bool(self.player_gender == Gender::Female)),
             _ => Err(LogMessageVarError),
         }
     }
@@ -118,7 +131,7 @@ impl PlayerProp {
 ///
 /// it's not clear what all the params represent, but there's also a fixed set of
 /// param combinations used, so for now just expect those
-fn sheet_en(p1: u32, player: Player, p3: u32, p4: u32) -> Result<String> {
+fn sheet_en(p1: u32, player: &Player, p3: u32, p4: u32) -> Result<String> {
     match (p1, p3, p4) {
         // only usage - get player name with world (if on other world)
         (2, 1, 1) => Ok(format!("{}@{}", player.name, player.world)),
@@ -132,10 +145,10 @@ fn sheet_en(p1: u32, player: Player, p3: u32, p4: u32) -> Result<String> {
 //     BNpcName,
 // }
 
-pub enum SheetParam<'a> {
-    Number(u32),
-    PParam(PParam<'a>),
-}
+// pub enum SheetParam<'a> {
+//     Number(u32),
+//     PParam(PParam<'a>),
+// }
 
 impl LogMessageProps {
     pub fn new(object_parameter: ObjectProp, player_parameter: PlayerProp) -> LogMessageProps {
@@ -153,25 +166,25 @@ impl LogMessageProps {
         self.player_parameter.at(ind)
     }
 
+    pub fn sheet_en(p1: u32, player: &Player, p3: u32, p4: u32) -> Result<String> {
+        sheet_en(p1, player, p3, p4)
+    }
+
     /// it's not clear what all the params represent, but there's also a fixed set of
     /// param combinations used, so for now just expect those
-    pub fn sheet_objstr(p1: SheetParam, p2: u32) -> Result<String> {
-        match (p1, p2) {
-            // only usage - get player name with world (if on other world)
-            (SheetParam::PParam(PParam::Player(Some(player))), 0) => {
-                Ok(format!("{}@{}", player.name, player.world))
-            }
+    pub fn sheet_objstr(player: &Player, p2: u32) -> Result<String> {
+        match (player, p2) {
+            // only usage - get player name with world (if on other worl)
+            (player, 0) => Ok(format!("{}@{}", player.name, player.world)),
             _ => Err(LogMessageVarError),
         }
     }
 
-    pub fn sheet_bnpcname(p1: SheetParam, p2: u32) -> Result<bool> {
+    pub fn sheet_bnpcname(player: &Player, p2: u32) -> Result<bool> {
         // despite the name, seems to be used for player characters as well
         // also appears to only be used inside If tags, despite Sheet also being a tag
-        match (p1, p2) {
-            (SheetParam::PParam(PParam::Player(Some(player))), 6) => {
-                Ok(player.gender == Gender::Female)
-            }
+        match (player, p2) {
+            (player, 6) => Ok(player.gender == Gender::Female),
             _ => Err(LogMessageVarError),
         }
     }

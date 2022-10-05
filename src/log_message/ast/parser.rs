@@ -60,7 +60,8 @@ impl LogMessageParser {
 
     fn if_param(input: Node) -> Result<IfParam> {
         Ok(match_nodes!(input.into_children();
-            [function(fun)] => IfParam(fun)
+            [function(fun)] => IfParam::Function(fun),
+            [auto_closing_tag(tag)] => IfParam::Tag(tag)
         ))
     }
 
