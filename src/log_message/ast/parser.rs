@@ -29,8 +29,8 @@ impl LogMessageParser {
         input.as_str().parse().map_err(|e| input.error(e))
     }
 
-    fn param_obj(input: Node) -> Result<String> {
-        Ok(input.as_str().to_string())
+    fn param_obj(input: Node) -> Result<Obj> {
+        Obj::from_str(input.as_str()).map_err(|e| input.error(e))
     }
 
     fn open_tag(input: Node) -> Result<Tag> {

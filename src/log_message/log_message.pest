@@ -8,6 +8,10 @@ func_equal = { "Equal" }
 func_obj_param = { "ObjectParameter" }
 func_player_param = { "PlayerParameter" }
 
+// supported objs
+obj_objstr = { "ObjStr" }
+obj_bnpcname = { "BNpcName" }
+
 // low level types
 text = { (LETTER | PUNCTUATION | SEPARATOR)+ }
 // tag_name = { ASCII_ALPHA_UPPER ~ ASCII_ALPHA+ }
@@ -15,7 +19,7 @@ tag_name = { tag_sheet_en | tag_sheet | tag_clickable }
 // func_name = { ASCII_ALPHA_UPPER ~ ASCII_ALPHA+ }
 func_name = { func_equal | func_obj_param | func_player_param }
 param_num = { ASCII_DIGIT+ }
-param_obj = { ASCII_ALPHA_UPPER ~ ASCII_ALPHA+ }
+param_obj = { obj_objstr | obj_bnpcname }
 
 // tags
 open_tag = { "<" ~ tag_name ~ ("(" ~ param ~ ("," ~ param)* ~ ")")? ~ ">" }

@@ -5,10 +5,6 @@ use crate::log_message::props::{LogMessagePropError, LogMessageProps, PParam, Pl
 
 #[derive(Debug, Clone, Error)]
 pub enum EmoteTextProcessError {
-    #[error("Equal function did not have 2 parameters")]
-    EqualParamCount,
-    #[error("Equal function parameters must have same type")]
-    EqualParamTypes,
     #[error("Function used in unexpected place ({name:?})")]
     DanglingFunction { name: FuncName },
     #[error("Could not find value in log message props (not yet implemented?)")]
@@ -23,7 +19,6 @@ pub enum EmoteTextProcessError {
         params: Vec<Param>,
         value: String,
     },
-
     #[error("Tag returned unexpected value ({name:?} {params:?}, return: {value:?}))")]
     UnexpectedTagReturn {
         name: TagName,
@@ -32,9 +27,8 @@ pub enum EmoteTextProcessError {
     },
     #[error("Clickable contained unexpected param ({params:?})")]
     UnexpectedClickable { params: Vec<Param> },
-    // todo change to enum
     #[error("Unexpected obj parameter ({name:?})")]
-    UnexpectedObj { name: String },
+    UnexpectedObj { name: Obj },
     #[error("Unexpected num parameter ({value:?})")]
     UnexpectedNum { value: u32 },
 }
@@ -76,12 +70,18 @@ impl EmoteTextProcessor for MessagePart {
     }
 }
 
+#[derive(Debug, Clone, Copy, EnumString, PartialEq, Eq)]
+pub enum Obj {
+    ObjStr,
+    BNpcName,
+}
+
 #[derive(Debug, Clone)]
 pub enum Param {
     Element(Element),
     Function(Function),
     Num(u32),
-    Obj(String),
+    Obj(Obj),
 }
 
 impl EmoteTextProcessor for Param {
@@ -89,7 +89,7 @@ impl EmoteTextProcessor for Param {
         match self {
             Param::Element(e) => e.process(props),
             Param::Function(f) => f.process(props),
-            Param::Obj(o) => Err(EmoteTextProcessError::UnexpectedObj { name: o.clone() }),
+            Param::Obj(o) => Err(EmoteTextProcessError::UnexpectedObj { name: *o }),
             Param::Num(n) => Err(EmoteTextProcessError::UnexpectedNum { value: *n }),
         }
     }
@@ -232,27 +232,26 @@ impl Tag {
                 ), Param::Num(p3)],
             ) => {
                 // todo make Param::Obj hold an enum
-                match obj.as_str() {
-                    "ObjStr" => Ok(TagValue::Text(LogMessageProps::sheet_objstr(
+                match obj {
+                    Obj::ObjStr => Ok(TagValue::Text(LogMessageProps::sheet_objstr(
                         pparam_fun.to_player(props)?,
                         *p3,
                     )?)),
-                    "BNpcName" => Ok(TagValue::Bool(LogMessageProps::sheet_bnpcname(
+                    Obj::BNpcName => Ok(TagValue::Bool(LogMessageProps::sheet_bnpcname(
                         pparam_fun.to_player(props)?,
                         *p3,
                     )?)),
-                    _ => Err(EmoteTextProcessError::UnexpectedObj { name: obj.clone() }),
                 }
             }
             (
                 TagName::SheetEn,
-                [Param::Obj(obj), Param::Num(p1), Param::Function(
+                [Param::Obj(Obj::ObjStr), Param::Num(p1), Param::Function(
                     pparam_fun @ Function {
                         name: FuncName::PlayerParameter,
                         params: _,
                     },
                 ), Param::Num(p3), Param::Num(p4)],
-            ) if obj == "ObjStr" => Ok(TagValue::Text(LogMessageProps::sheet_en(
+            ) => Ok(TagValue::Text(LogMessageProps::sheet_en(
                 *p1,
                 pparam_fun.to_player(props)?,
                 *p3,
