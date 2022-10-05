@@ -4,11 +4,19 @@ use thiserror::Error;
 
 use super::types::Gender;
 
+#[derive(Debug, Clone, Copy)]
+pub enum LogMessageProp {
+    ObjectParameter,
+    PlayerParameter,
+    Sheet,
+    SheetEn,
+}
+
 #[derive(Debug, Clone, Error)]
 #[error("Invalid parameters ({params:?}) for prop ({name:?})")]
 pub struct LogMessagePropError {
     // todo make this an enum
-    name: &'static str,
+    name: LogMessageProp,
     params: Vec<String>,
 }
 
@@ -51,11 +59,11 @@ impl ObjectProp {
             1 => Ok(&self.origin),
             2 => Ok(&self.me),
             3 => self.target.as_ref().ok_or(LogMessagePropError {
-                name: "ObjectParameter",
+                name: LogMessageProp::ObjectParameter,
                 params: vec![ind.to_string()],
             }),
             _ => Err(LogMessagePropError {
-                name: "ObjectParameter",
+                name: LogMessageProp::ObjectParameter,
                 params: vec![ind.to_string()],
             }),
         }
@@ -80,7 +88,7 @@ pub struct Player {
 
 impl ToString for Player {
     fn to_string(&self) -> String {
-        format!("{}@{} ({})", self.name, self.world, self.gender.to_string())
+        format!("{}@{} ({})", self.name, self.world, self.gender)
     }
 }
 
@@ -138,7 +146,7 @@ impl PlayerProp {
             // PlayerParameter(5) is not where target NPC gender info is stored)
             5 => Ok(PParam::Bool(self.player_gender == Gender::Female)),
             _ => Err(LogMessagePropError {
-                name: "PlayerParameter",
+                name: LogMessageProp::PlayerParameter,
                 params: vec![ind.to_string()],
             }),
         }
@@ -155,7 +163,7 @@ fn sheet_en(p1: u32, player: &Player, p3: u32, p4: u32) -> Result<String> {
         // only usage - get player name with world (if on other world)
         (2, 1, 1) => Ok(format!("{}@{}", player.name, player.world)),
         _ => Err(LogMessagePropError {
-            name: "SheetEn",
+            name: LogMessageProp::SheetEn,
             params: vec![
                 p1.to_string(),
                 player.to_string(),
@@ -204,7 +212,7 @@ impl LogMessageProps {
             // only usage - get player name with world (if on other worl)
             (player, 0) => Ok(format!("{}@{}", player.name, player.world)),
             _ => Err(LogMessagePropError {
-                name: "Sheet",
+                name: LogMessageProp::Sheet,
                 params: vec!["ObjStr".to_string(), player.to_string(), p2.to_string()],
             }),
         }
@@ -216,7 +224,7 @@ impl LogMessageProps {
         match (player, p2) {
             (player, 6) => Ok(player.gender == Gender::Female),
             _ => Err(LogMessagePropError {
-                name: "Sheet",
+                name: LogMessageProp::Sheet,
                 params: vec!["BNpcName".to_string(), player.to_string(), p2.to_string()],
             }),
         }

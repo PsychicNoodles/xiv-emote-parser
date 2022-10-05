@@ -293,7 +293,7 @@ impl EmoteTextProcessor for Function {
             }),
             FuncName::ObjectParameter => match self.value(props)? {
                 FunctionValue::ObjString(s) => Ok(s.clone()),
-                value @ _ => Err(EmoteTextProcessError::UnexpectedFuncReturn {
+                value => Err(EmoteTextProcessError::UnexpectedFuncReturn {
                     name: self.name,
                     params: self.params.clone(),
                     value: format!("{:?}", value),

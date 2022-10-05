@@ -1,13 +1,15 @@
 // use pest::iterators::Pairs;
 use pest_consume::Parser;
 
-use super::{props::LogMessageProps, EmoteText, EmoteTextError, LogMessageParser, Rule};
+use super::{props::LogMessageProps, EmoteTextError};
+
+#[derive(Parser)]
+#[grammar = "log_message/log_message.pest"]
+pub struct LogMessageParser;
 
 pub type EmoteTextResult = std::result::Result<String, EmoteTextError>;
 
 pub fn process_log_message(log_msg: &str, params: LogMessageProps) -> EmoteTextResult {
-    let mut emote_text = EmoteText::new();
-
     let root = LogMessageParser::parse(Rule::message, log_msg)
         .map_err(EmoteTextError::ParseError)?
         .single()

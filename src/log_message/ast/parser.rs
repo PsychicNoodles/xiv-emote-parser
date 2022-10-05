@@ -1,5 +1,5 @@
 use super::types::*;
-use crate::log_message::{LogMessageParser, Rule};
+use crate::log_message::parser::{LogMessageParser, Rule};
 
 use pest_consume::{match_nodes, Error};
 use std::str::FromStr;
@@ -9,6 +9,7 @@ type Node<'i> = pest_consume::Node<'i, Rule, ()>;
 
 #[pest_consume::parser]
 impl LogMessageParser {
+    #[allow(dead_code)]
     fn EOI(_input: Node) -> Result<()> {
         Ok(())
     }
@@ -111,7 +112,7 @@ impl LogMessageParser {
 
     pub fn message(input: Node) -> Result<Message> {
         Ok(match_nodes!(input.into_children();
-            [message_part(parts).., EOI] => Message(parts.collect())
+            [message_part(parts).., _] => Message(parts.collect())
         ))
     }
 }

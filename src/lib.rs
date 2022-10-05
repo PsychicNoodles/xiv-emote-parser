@@ -1,1 +1,1 @@
-mod log_message;
+pub mod log_message;
