@@ -1,4 +1,3 @@
-// use pest::iterators::Pairs;
 use pest_consume::Parser;
 
 use super::{props::LogMessageProps, EmoteTextError};
@@ -9,6 +8,8 @@ pub struct LogMessageParser;
 
 pub type EmoteTextResult = std::result::Result<String, EmoteTextError>;
 
+/// The entrypoint to this library. Processes the raw log message, plugging in
+/// data from the [LogMessageProps] where appropriate, and produces a plain text result.
 pub fn process_log_message(log_msg: &str, params: LogMessageProps) -> EmoteTextResult {
     let root = LogMessageParser::parse(Rule::message, log_msg)
         .map_err(EmoteTextError::ParseError)?
@@ -18,15 +19,3 @@ pub fn process_log_message(log_msg: &str, params: LogMessageProps) -> EmoteTextR
 
     Ok(message.process_string(&params)?)
 }
-
-// fn process_pairs(
-//     mut pairs: Pairs<Rule>,
-//     params: LogMessageProps,
-//     targets: Targets,
-// ) -> EmoteTextResult {
-//     let mut r = EmoteText::new();
-
-//     while let Some(p) = pairs.next() {}
-
-//     todo!()
-// }

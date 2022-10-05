@@ -15,13 +15,14 @@ pub enum LogMessageProp {
 #[derive(Debug, Clone, Error)]
 #[error("Invalid parameters ({params:?}) for prop ({name:?})")]
 pub struct LogMessagePropError {
-    // todo make this an enum
     name: LogMessageProp,
     params: Vec<String>,
 }
 
 type Result<T> = std::result::Result<T, LogMessagePropError>;
 
+/// Context for a log message, used to store details like name and pronouns as well
+/// as determine if the speaker is the player, etc.
 pub struct LogMessageProps {
     object_parameter: ObjectProp,
     player_parameter: PlayerProp,

@@ -9,6 +9,7 @@ mod types;
 
 pub use self::parser::process_log_message;
 use self::parser::Rule;
+pub use self::props::LogMessageProps;
 
 #[derive(Debug, Error)]
 pub enum EmoteTextError {
