@@ -10,20 +10,6 @@ mod types;
 pub use self::parser::process_log_message;
 use self::parser::Rule;
 
-#[derive(Debug)]
-pub struct EmoteText {
-    // no args
-    pub you_untarget: String,
-    // "target"
-    pub you_target_other: String,
-    // "user"
-    pub other_target_you: String,
-    // "user", "target"
-    pub other_target_other: String,
-    // "user"
-    pub other_untarget: String,
-}
-
 #[derive(Debug, Error)]
 pub enum EmoteTextError {
     #[error("No log message found by parser")]
