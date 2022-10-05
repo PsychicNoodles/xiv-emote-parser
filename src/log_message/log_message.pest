@@ -24,7 +24,7 @@ close_tag = { "</" ~ tag_name ~ ">" }
 
 // elements
 if_else_then = { param | text }
-if_param = { function }
+if_param = { function | auto_closing_tag }
 if_else_element = { "<If(" ~ if_param ~ ")>" ~ if_else_then ~ "<Else/>" ~ if_else_then ~ "</If>" }
 element = {
   if_else_element |

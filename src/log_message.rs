@@ -162,4 +162,25 @@ mod test {
 
         println!("{}", text.expect("did not parse correctly"));
     }
+
+    #[test]
+    fn can_parse_en_with_ast_gendered_speaker() {
+        let log_msg = "<Clickable(<If(Equal(ObjectParameter(1),ObjectParameter(2)))>you<Else/><If(PlayerParameter(7))><SheetEn(ObjStr,2,PlayerParameter(7),1,1)/><Else/>ObjectParameter(2)</If></If>)/> <If(Equal(ObjectParameter(1),ObjectParameter(2)))>express<Else/>expresses</If> <If(Equal(ObjectParameter(1),ObjectParameter(2)))>your<Else/><If(PlayerParameter(7))><If(<Sheet(BNpcName,PlayerParameter(7),6)/>)>her<Else/>his</If><Else/><If(PlayerParameter(5))>her<Else/>his</If></If></If> annoyance with <If(Equal(ObjectParameter(1),ObjectParameter(3)))><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>you</If><Else/><If(PlayerParameter(8))><SheetEn(ObjStr,2,PlayerParameter(8),1,1)/><Else/>ObjectParameter(3)</If></If>.";
+
+        let parse = LogMessageParser::parse(Rule::message, log_msg).unwrap();
+        println!("{:#?}", parse);
+        let root = parse.single().unwrap();
+        let message = LogMessageParser::message(root).unwrap();
+
+        let text = message.process_string(&LogMessageProps::new(
+            ObjectProp::new("Other Player", "K'haldru Alaba", Some("Puruo Jelly")),
+            PlayerProp::new(
+                Some(Player::new("K'haldru Alaba", "Asura", Gender::Female)),
+                Some(Player::new("Puruo Jelly", "Asura", Gender::Male)),
+                Gender::Female,
+            ),
+        ));
+
+        println!("{}", text.expect("did not parse correctly"));
+    }
 }
