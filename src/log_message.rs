@@ -160,8 +160,6 @@ mod test {
             ),
         ));
 
-        assert!(text.is_ok(), "did not parse correctly");
-
-        println!("{}", text.unwrap());
+        println!("{}", text.expect("did not parse correctly"));
     }
 }

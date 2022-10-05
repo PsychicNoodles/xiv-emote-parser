@@ -5,10 +5,14 @@ use thiserror::Error;
 use super::types::Gender;
 
 #[derive(Debug, Clone, Error)]
-#[error("Invalid parameters for log message var")]
-pub struct LogMessageVarError;
+#[error("Invalid parameters ({params:?}) for prop ({name:?})")]
+pub struct LogMessagePropError {
+    // todo make this an enum
+    name: &'static str,
+    params: Vec<String>,
+}
 
-type Result<T> = std::result::Result<T, LogMessageVarError>;
+type Result<T> = std::result::Result<T, LogMessagePropError>;
 
 pub struct LogMessageProps {
     object_parameter: ObjectProp,
@@ -46,8 +50,14 @@ impl ObjectProp {
         match ind {
             1 => Ok(&self.origin),
             2 => Ok(&self.me),
-            2 => self.target.as_ref().ok_or(LogMessageVarError),
-            _ => Err(LogMessageVarError),
+            3 => self.target.as_ref().ok_or(LogMessagePropError {
+                name: "ObjectParameter",
+                params: vec![ind.to_string()],
+            }),
+            _ => Err(LogMessagePropError {
+                name: "ObjectParameter",
+                params: vec![ind.to_string()],
+            }),
         }
     }
 }
@@ -66,6 +76,12 @@ pub struct Player {
     world: String,
     /// only used by target currently (in en and ja, second-person pronoun is ungendered)
     gender: Gender,
+}
+
+impl ToString for Player {
+    fn to_string(&self) -> String {
+        format!("{}@{} ({})", self.name, self.world, self.gender.to_string())
+    }
 }
 
 impl Player {
@@ -121,7 +137,10 @@ impl PlayerProp {
             // and if origin is not a player as a sort of default (assuming that
             // PlayerParameter(5) is not where target NPC gender info is stored)
             5 => Ok(PParam::Bool(self.player_gender == Gender::Female)),
-            _ => Err(LogMessageVarError),
+            _ => Err(LogMessagePropError {
+                name: "PlayerParameter",
+                params: vec![ind.to_string()],
+            }),
         }
     }
 }
@@ -135,7 +154,15 @@ fn sheet_en(p1: u32, player: &Player, p3: u32, p4: u32) -> Result<String> {
     match (p1, p3, p4) {
         // only usage - get player name with world (if on other world)
         (2, 1, 1) => Ok(format!("{}@{}", player.name, player.world)),
-        _ => Err(LogMessageVarError),
+        _ => Err(LogMessagePropError {
+            name: "SheetEn",
+            params: vec![
+                p1.to_string(),
+                player.to_string(),
+                p3.to_string(),
+                p4.to_string(),
+            ],
+        }),
     }
 }
 
@@ -176,7 +203,10 @@ impl LogMessageProps {
         match (player, p2) {
             // only usage - get player name with world (if on other worl)
             (player, 0) => Ok(format!("{}@{}", player.name, player.world)),
-            _ => Err(LogMessageVarError),
+            _ => Err(LogMessagePropError {
+                name: "Sheet",
+                params: vec!["ObjStr".to_string(), player.to_string(), p2.to_string()],
+            }),
         }
     }
 
@@ -185,7 +215,10 @@ impl LogMessageProps {
         // also appears to only be used inside If tags, despite Sheet also being a tag
         match (player, p2) {
             (player, 6) => Ok(player.gender == Gender::Female),
-            _ => Err(LogMessageVarError),
+            _ => Err(LogMessagePropError {
+                name: "Sheet",
+                params: vec!["BNpcName".to_string(), player.to_string(), p2.to_string()],
+            }),
         }
     }
 }

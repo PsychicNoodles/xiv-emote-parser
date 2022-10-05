@@ -1,7 +1,7 @@
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::log_message::props::{LogMessageProps, LogMessageVarError, PParam, Player};
+use crate::log_message::props::{LogMessagePropError, LogMessageProps, PParam, Player};
 
 #[derive(Debug, Clone, Error)]
 pub enum EmoteTextProcessError {
@@ -12,7 +12,7 @@ pub enum EmoteTextProcessError {
     #[error("Function used in unexpected place ({name:?})")]
     DanglingFunction { name: FuncName },
     #[error("Could not find value in log message props (not yet implemented?)")]
-    PropMissing(#[from] LogMessageVarError),
+    PropMissing(#[from] LogMessagePropError),
     #[error("Invalid combination of function ({name:?}) and parameters ({params:?})")]
     InvalidFunc { name: FuncName, params: Vec<Param> },
     #[error("Invalid combination of tag ({name:?}) and parameters ({params:?})")]
@@ -201,7 +201,7 @@ impl EmoteTextProcessor for Tag {
                     params: self.params.clone(),
                 }),
             },
-            (TagName::Sheet, 3) | (TagName::SheetEn, 4) => match self.value(props) {
+            (TagName::Sheet, 3) | (TagName::SheetEn, 5) => match self.value(props) {
                 Ok(TagValue::Text(t)) => Ok(t),
                 Ok(v) => Err(EmoteTextProcessError::UnexpectedTagReturn {
                     name: self.name,
@@ -246,13 +246,13 @@ impl Tag {
             }
             (
                 TagName::SheetEn,
-                [Param::Num(p1), Param::Function(
+                [Param::Obj(obj), Param::Num(p1), Param::Function(
                     pparam_fun @ Function {
                         name: FuncName::PlayerParameter,
                         params: _,
                     },
                 ), Param::Num(p3), Param::Num(p4)],
-            ) => Ok(TagValue::Text(LogMessageProps::sheet_en(
+            ) if obj == "ObjStr" => Ok(TagValue::Text(LogMessageProps::sheet_en(
                 *p1,
                 pparam_fun.to_player(props)?,
                 *p3,
