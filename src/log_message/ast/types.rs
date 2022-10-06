@@ -41,15 +41,25 @@ pub enum Text {
     Static(String),
 }
 
+// todo maybe come up with a better name...
+#[derive(Debug, Clone)]
+pub struct ConditionState {
+    pub cond: Condition,
+    pub is_true: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct ConditionText {
-    pub conds: Vec<Condition>,
+    pub conds: Vec<ConditionState>,
     pub text: Text,
 }
 
 trait EmoteTextProcessor {
     // todo maybe make this cow
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError>;
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError>;
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +82,10 @@ pub enum MessagePart {
 }
 
 impl EmoteTextProcessor for MessagePart {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
             MessagePart::Element(e) => e.process(conds),
             MessagePart::Text(t) => Ok(vec![ConditionText {
@@ -98,7 +111,10 @@ pub enum Param {
 }
 
 impl EmoteTextProcessor for Param {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
             Param::Element(e) => e.process(conds),
             Param::Function(f) => f.process(conds),
@@ -121,7 +137,10 @@ pub enum Element {
 }
 
 impl EmoteTextProcessor for Element {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
             Element::IfElse(ie) => ie.process(conds),
             // currently can only be formed by auto_close_tag, which never has a child
@@ -144,29 +163,41 @@ pub struct IfElse {
 }
 
 impl EmoteTextProcessor for IfElse {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         let if_cond = Condition::try_from(&self.if_cond)?;
-        let mut new_conds = conds.clone();
-        new_conds.push(if_cond);
+        let mut if_conds = conds.clone();
+        if_conds.push(ConditionState {
+            cond: if_cond,
+            is_true: true,
+        });
+        let mut else_conds = conds.clone();
+        else_conds.push(ConditionState {
+            cond: if_cond,
+            is_true: false,
+        });
+
         let mut res = vec![];
         match &self.if_then {
             IfElseThen::Param(p) => {
-                res.append(&mut p.process(new_conds.clone())?);
+                res.append(&mut p.process(if_conds.clone())?);
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
-                    conds: new_conds.clone(),
+                    conds: if_conds.clone(),
                     text: Text::Static(t.clone()),
                 });
             }
         }
         match &self.else_then {
             IfElseThen::Param(p) => {
-                res.append(&mut p.process(new_conds)?);
+                res.append(&mut p.process(else_conds)?);
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
-                    conds: new_conds.clone(),
+                    conds: else_conds.clone(),
                     text: Text::Static(t.clone()),
                 });
             }
@@ -189,7 +220,10 @@ pub struct Tag {
 }
 
 impl EmoteTextProcessor for Tag {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match (self.name, &self.params[..]) {
             // Clickable seems to always be a superfluous wrapper on the first message part
             (TagName::Clickable, [p]) => p.process(conds),
@@ -215,7 +249,10 @@ pub struct Function {
 }
 
 impl EmoteTextProcessor for Function {
-    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    fn process(
+        &self,
+        conds: Vec<ConditionState>,
+    ) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         Ok(vec![ConditionText {
             conds,
             text: Text::Dynamic(DynamicText::try_from(self.clone())?),
