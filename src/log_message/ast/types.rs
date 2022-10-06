@@ -35,11 +35,13 @@ pub enum EmoteTextProcessError {
     DynamicTextError(#[from] DynamicTextError),
 }
 
+#[derive(Debug, Clone)]
 pub enum Text {
     Dynamic(DynamicText),
     Static(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct ConditionText {
     pub conds: Vec<Condition>,
     pub text: Text,
@@ -153,7 +155,7 @@ impl EmoteTextProcessor for IfElse {
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
-                    conds: conds.clone(),
+                    conds: new_conds.clone(),
                     text: Text::Static(t.clone()),
                 });
             }
@@ -164,7 +166,7 @@ impl EmoteTextProcessor for IfElse {
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
-                    conds,
+                    conds: new_conds.clone(),
                     text: Text::Static(t.clone()),
                 });
             }
