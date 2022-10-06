@@ -19,7 +19,7 @@ pub type EmoteTextResult = std::result::Result<String, EmoteTextError>;
 /// A default implementation for [Answers] is provided in [LogMessageAnswers].
 ///
 /// [LogMessageAnswers]: super::ast::condition::LogMessageAnswers
-pub fn process_log_message<T>(log_msg: &str, answers: T) -> EmoteTextResult
+pub fn process_log_message<T>(log_msg: &str, answers: &T) -> EmoteTextResult
 where
     T: Answers,
 {

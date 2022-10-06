@@ -2,9 +2,10 @@ use std::error::Error;
 
 use discord_xiv_emotes::log_message::{
     condition::{Character, Gender, LogMessageAnswers},
-    process_log_message,
+    process_log_message, EmoteTextError,
 };
 use serde_json::Value;
+use thiserror::Error;
 
 // #[test]
 // fn can_parse_en() {
@@ -38,7 +39,7 @@ fn can_parse_en_with_ast() -> Result<(), impl Error> {
 
     let origin = Character::new("K'haldru Alaba", Gender::Female, true, true);
     let target = Character::new("Puruo Jelly", Gender::Male, true, false);
-    let text = process_log_message(log_msg, LogMessageAnswers::new(origin, target).unwrap());
+    let text = process_log_message(log_msg, &LogMessageAnswers::new(origin, target).unwrap());
     println!("{:?}", text);
     text.map(|_| ())
 }
@@ -49,30 +50,63 @@ fn can_parse_en_with_ast_gendered_speaker() -> Result<(), impl Error> {
 
     let origin = Character::new("K'haldru Alaba", Gender::Female, true, true);
     let target = Character::new("Puruo Jelly", Gender::Male, true, false);
-    let text = process_log_message(log_msg, LogMessageAnswers::new(origin, target).unwrap());
+    let text = process_log_message(log_msg, &LogMessageAnswers::new(origin, target).unwrap());
     println!("{:?}", text);
     text.map(|_| ())
 }
 
-// #[test]
-// fn can_parse_all_emotes() {
-//     let data = include_str!("../emote-22106.json");
-//     let v: Value = serde_json::from_str(data).expect("couldn't parse test json");
-//     let emotes = v["Results"]
-//         .as_array()
-//         .expect("test json didn't contain Results array");
+#[derive(Debug, Error)]
+#[error("Failed to parse {name} ({error:?}) (original: {original})")]
+struct MessageTestError {
+    name: String,
+    original: String,
+    error: EmoteTextError,
+}
 
-//     let char1 = Character::new("K'haldru Alaba", Gender::Female, true, true);
-//     let char2 = Character::new("Puruo Jelly", Gender::Male, true, false);
-//     let char3 = Character::new("Ardbert Bestboy", Gender::Male, false, false);
+#[test]
+fn can_parse_all_emotes() -> Result<(), impl Error> {
+    let data = include_str!("../emote-22106.json");
+    let v: Value = serde_json::from_str(data).expect("couldn't parse test json");
+    let emotes = v["Results"]
+        .as_array()
+        .expect("test json didn't contain Results array");
 
-//     for emote in emotes {
-//         let messages = [
-//             &emote["LogMessageTargeted"]["Text_en"],
-//             &emote["LogMessageTargeted"]["Text_jp"],
-//             &emote["LogMessageUntargeted"]["Text_en"],
-//             &emote["LogMessageUntargeted"]["Text_jp"],
-//         ]
-//         .map(|v| v.as_str().expect("couldn't find log message data"));
-//     }
-// }
+    let char1 = Character::new("K'haldru Alaba", Gender::Female, true, true);
+    let char2 = Character::new("Puruo Jelly", Gender::Male, true, false);
+    let char3 = Character::new("Ardbert Bestboy", Gender::Male, false, false);
+    let answerses = [
+        LogMessageAnswers::new(char1.clone(), char2.clone()),
+        LogMessageAnswers::new(char2.clone(), char3.clone()),
+        LogMessageAnswers::new(char3.clone(), char1.clone()),
+    ]
+    .map(|r| r.expect("couldn't set up answers"));
+
+    for emote in emotes {
+        let name = emote["Name"]
+            .as_str()
+            .expect("emote didn't have a name")
+            .to_string();
+        let messages = [
+            &emote["LogMessageTargeted"]["Text_en"],
+            &emote["LogMessageTargeted"]["Text_ja"],
+            &emote["LogMessageUntargeted"]["Text_en"],
+            &emote["LogMessageUntargeted"]["Text_ja"],
+        ]
+        .map(|v| v.as_str().expect("couldn't find log message data"));
+
+        for message in messages {
+            for answers in &answerses {
+                let text = process_log_message(message, answers);
+                if let Err(e) = text {
+                    return Err(MessageTestError {
+                        name,
+                        original: message.to_string(),
+                        error: e,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
