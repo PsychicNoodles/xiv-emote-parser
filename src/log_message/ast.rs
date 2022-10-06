@@ -1,5 +1,5 @@
 //! Intermediate type, post pest rule processing
 
-mod condition;
+pub mod condition;
 mod parser;
 pub mod types;

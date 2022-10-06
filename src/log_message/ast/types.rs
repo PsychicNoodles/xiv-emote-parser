@@ -1,14 +1,12 @@
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::log_message::props::{LogMessagePropError, LogMessageProps, PParam, Player};
+use super::condition::{Condition, ConditionError, DynamicText, DynamicTextError};
 
 #[derive(Debug, Clone, Error)]
 pub enum EmoteTextProcessError {
     #[error("Function used in unexpected place ({name:?})")]
     DanglingFunction { name: FuncName },
-    #[error("Could not find value in log message props (not yet implemented?)")]
-    PropMissing(#[from] LogMessagePropError),
     #[error("Invalid combination of function ({name:?}) and parameters ({params:?})")]
     InvalidFunc { name: FuncName, params: Vec<Param> },
     #[error("Invalid combination of tag ({name:?}) and parameters ({params:?})")]
@@ -31,27 +29,37 @@ pub enum EmoteTextProcessError {
     UnexpectedObj { name: Obj },
     #[error("Unexpected num parameter ({value:?})")]
     UnexpectedNum { value: u32 },
+    #[error("Unexpected condition (not implemented?)")]
+    ConditionError(#[from] ConditionError),
+    #[error("Unexpected dynamic text (not implemented?)")]
+    DynamicTextError(#[from] DynamicTextError),
 }
 
-pub(super) trait EmoteTextProcessor {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError>;
+pub enum Text {
+    Dynamic(DynamicText),
+    Static(String),
+}
+
+pub struct ConditionText {
+    pub conds: Vec<Condition>,
+    pub text: Text,
+}
+
+trait EmoteTextProcessor {
+    // todo maybe make this cow
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError>;
 }
 
 #[derive(Debug, Clone)]
 pub struct Message(pub Vec<MessagePart>);
 
-impl EmoteTextProcessor for Message {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
+impl Message {
+    pub fn process_string(&self) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         self.0
             .iter()
-            .map(|p| p.process(props))
-            .collect::<Result<_, EmoteTextProcessError>>()
-    }
-}
-
-impl Message {
-    pub fn process_string(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
-        self.process(props)
+            .map(|part| part.process(vec![]))
+            .collect::<Result<Vec<_>, EmoteTextProcessError>>()
+            .map(|vecs| vecs.into_iter().flatten().collect())
     }
 }
 
@@ -62,10 +70,13 @@ pub enum MessagePart {
 }
 
 impl EmoteTextProcessor for MessagePart {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
-            MessagePart::Element(e) => e.process(props),
-            MessagePart::Text(t) => Ok(t.clone()),
+            MessagePart::Element(e) => e.process(conds),
+            MessagePart::Text(t) => Ok(vec![ConditionText {
+                conds,
+                text: Text::Static(t.clone()),
+            }]),
         }
     }
 }
@@ -85,10 +96,10 @@ pub enum Param {
 }
 
 impl EmoteTextProcessor for Param {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
-            Param::Element(e) => e.process(props),
-            Param::Function(f) => f.process(props),
+            Param::Element(e) => e.process(conds),
+            Param::Function(f) => f.process(conds),
             Param::Obj(o) => Err(EmoteTextProcessError::UnexpectedObj { name: *o }),
             Param::Num(n) => Err(EmoteTextProcessError::UnexpectedNum { value: *n }),
         }
@@ -108,11 +119,11 @@ pub enum Element {
 }
 
 impl EmoteTextProcessor for Element {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match self {
-            Element::IfElse(ie) => ie.process(props),
+            Element::IfElse(ie) => ie.process(conds),
             // currently can only be formed by auto_close_tag, which never has a child
-            Element::Tag(t, _s) => t.process(props),
+            Element::Tag(t, _s) => t.process(conds),
         }
     }
 }
@@ -131,50 +142,34 @@ pub struct IfElse {
 }
 
 impl EmoteTextProcessor for IfElse {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
-        let if_cond = match &self.if_cond {
-            IfParam::Function(fun) => {
-                match fun.value(props)? {
-                    FunctionValue::ObjString(o) => {
-                        Err(EmoteTextProcessError::UnexpectedFuncReturn {
-                            name: fun.name,
-                            params: fun.params.clone(),
-                            value: format!("{:?}", o),
-                        })
-                    }
-                    // ie. <If(PlayerParameter(8))>
-                    FunctionValue::PlayerParam(p) => match p {
-                        PParam::Player(opt) => Ok(opt.is_some()),
-                        PParam::Bool(b) => Ok(b),
-                    },
-                    FunctionValue::Bool(b) => Ok(b),
-                }
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+        let if_cond = Condition::try_from(&self.if_cond)?;
+        let mut new_conds = conds.clone();
+        new_conds.push(if_cond);
+        let mut res = vec![];
+        match &self.if_then {
+            IfElseThen::Param(p) => {
+                res.append(&mut p.process(new_conds.clone())?);
             }
-            IfParam::Tag(tag) => match tag.value(props)? {
-                TagValue::Text(t) => Err(EmoteTextProcessError::UnexpectedTagReturn {
-                    name: tag.name,
-                    params: tag.params.clone(),
-                    value: t,
-                }),
-                TagValue::Bool(b) => Ok(b),
-                TagValue::None => Err(EmoteTextProcessError::UnexpectedTagReturn {
-                    name: tag.name,
-                    params: tag.params.clone(),
-                    value: "(Clickable)".to_string(),
-                }),
-            },
-        }?;
-        if if_cond {
-            match &self.if_then {
-                IfElseThen::Param(p) => p.process(props),
-                IfElseThen::Text(t) => Ok(t.clone()),
-            }
-        } else {
-            match &self.else_then {
-                IfElseThen::Param(p) => p.process(props),
-                IfElseThen::Text(t) => Ok(t.clone()),
+            IfElseThen::Text(t) => {
+                res.push(ConditionText {
+                    conds: conds.clone(),
+                    text: Text::Static(t.clone()),
+                });
             }
         }
+        match &self.else_then {
+            IfElseThen::Param(p) => {
+                res.append(&mut p.process(new_conds)?);
+            }
+            IfElseThen::Text(t) => {
+                res.push(ConditionText {
+                    conds,
+                    text: Text::Static(t.clone()),
+                });
+            }
+        }
+        Ok(res)
     }
 }
 
@@ -192,84 +187,16 @@ pub struct Tag {
 }
 
 impl EmoteTextProcessor for Tag {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
-        match (self.name, self.params.len()) {
-            // clickable is afaik just ignored and always contains an IfElse
-            (TagName::Clickable, _) => match &self.params[..] {
-                [Param::Element(element)] => element.process(props),
-                _ => Err(EmoteTextProcessError::UnexpectedClickable {
-                    params: self.params.clone(),
-                }),
-            },
-            (TagName::Sheet, 3) | (TagName::SheetEn, 5) => match self.value(props) {
-                Ok(TagValue::Text(t)) => Ok(t),
-                Ok(v) => Err(EmoteTextProcessError::UnexpectedTagReturn {
-                    name: self.name,
-                    params: self.params.clone(),
-                    value: format!("{:?}", v),
-                }),
-                Err(e) => Err(e),
-            },
-            _ => Err(EmoteTextProcessError::InvalidTag {
-                name: self.name,
-                params: self.params.clone(),
-            }),
-        }
-    }
-}
-
-impl Tag {
-    fn value(&self, props: &LogMessageProps) -> Result<TagValue, EmoteTextProcessError> {
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
         match (self.name, &self.params[..]) {
-            (TagName::Clickable, [Param::Element(_)]) => Ok(TagValue::None),
-            (
-                TagName::Sheet,
-                [Param::Obj(obj), Param::Function(
-                    pparam_fun @ Function {
-                        name: FuncName::PlayerParameter,
-                        params: _,
-                    },
-                ), Param::Num(p3)],
-            ) => {
-                // todo make Param::Obj hold an enum
-                match obj {
-                    Obj::ObjStr => Ok(TagValue::Text(LogMessageProps::sheet_objstr(
-                        pparam_fun.to_player(props)?,
-                        *p3,
-                    )?)),
-                    Obj::BNpcName => Ok(TagValue::Bool(LogMessageProps::sheet_bnpcname(
-                        pparam_fun.to_player(props)?,
-                        *p3,
-                    )?)),
-                }
-            }
-            (
-                TagName::SheetEn,
-                [Param::Obj(Obj::ObjStr), Param::Num(p1), Param::Function(
-                    pparam_fun @ Function {
-                        name: FuncName::PlayerParameter,
-                        params: _,
-                    },
-                ), Param::Num(p3), Param::Num(p4)],
-            ) => Ok(TagValue::Text(LogMessageProps::sheet_en(
-                *p1,
-                pparam_fun.to_player(props)?,
-                *p3,
-                *p4,
-            )?)),
-            (name, _params) => Err(EmoteTextProcessError::InvalidTag {
-                name,
-                params: self.params.clone(),
-            }),
+            // Clickable seems to always be a superfluous wrapper on the first message part
+            (TagName::Clickable, [p]) => p.process(conds),
+            _ => Ok(vec![ConditionText {
+                conds,
+                text: Text::Dynamic(DynamicText::try_from(self.clone())?),
+            }]),
         }
     }
-}
-
-#[derive(Debug, Clone)]
-enum TagValue {
-    Text(String),
-    Bool(bool),
-    None,
 }
 
 #[derive(Debug, Clone, Copy, EnumString, PartialEq, Eq)]
@@ -286,75 +213,10 @@ pub struct Function {
 }
 
 impl EmoteTextProcessor for Function {
-    fn process(&self, props: &LogMessageProps) -> Result<String, EmoteTextProcessError> {
-        match self.name {
-            FuncName::Equal => Err(EmoteTextProcessError::DanglingFunction {
-                name: FuncName::Equal,
-            }),
-            FuncName::ObjectParameter => match self.value(props)? {
-                FunctionValue::ObjString(s) => Ok(s.clone()),
-                value => Err(EmoteTextProcessError::UnexpectedFuncReturn {
-                    name: self.name,
-                    params: self.params.clone(),
-                    value: format!("{:?}", value),
-                }),
-            },
-            FuncName::PlayerParameter => Err(EmoteTextProcessError::DanglingFunction {
-                name: FuncName::PlayerParameter,
-            }),
-        }
+    fn process(&self, conds: Vec<Condition>) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+        Ok(vec![ConditionText {
+            conds,
+            text: Text::Dynamic(DynamicText::try_from(self.clone())?),
+        }])
     }
-}
-
-impl Function {
-    fn value<'a>(
-        &'a self,
-        props: &'a LogMessageProps,
-    ) -> Result<FunctionValue, EmoteTextProcessError> {
-        match (self.name, &self.params[..]) {
-            // todo determine if Equal params are always the same type or not
-            (FuncName::Equal, params @ [_, _]) => match params {
-                [Param::Function(f1), Param::Function(f2)] => {
-                    Ok(FunctionValue::Bool(f1.value(props)? == f2.value(props)?))
-                }
-                _ => Err(EmoteTextProcessError::InvalidFunc {
-                    name: FuncName::Equal,
-                    params: self.params.clone(),
-                }),
-            },
-            (FuncName::ObjectParameter, [Param::Num(ind)]) => props
-                .object_parameter(*ind)
-                .map(FunctionValue::ObjString)
-                .map_err(EmoteTextProcessError::PropMissing),
-            (FuncName::PlayerParameter, [Param::Num(ind)]) => props
-                .player_parameter(*ind)
-                .map(FunctionValue::PlayerParam)
-                .map_err(EmoteTextProcessError::PropMissing),
-            (name, _params) => Err(EmoteTextProcessError::InvalidFunc {
-                name,
-                params: self.params.clone(),
-            }),
-        }
-    }
-
-    fn to_player<'a>(
-        &'a self,
-        props: &'a LogMessageProps,
-    ) -> Result<&Player, EmoteTextProcessError> {
-        match self.value(props)? {
-            FunctionValue::PlayerParam(PParam::Player(Some(p))) => Ok(p),
-            value => Err(EmoteTextProcessError::UnexpectedFuncReturn {
-                name: FuncName::PlayerParameter,
-                params: self.params.clone(),
-                value: format!("{:?}", value),
-            }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum FunctionValue<'a> {
-    ObjString(&'a String),
-    PlayerParam(PParam<'a>),
-    Bool(bool),
 }
