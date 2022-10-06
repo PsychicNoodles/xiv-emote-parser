@@ -4,7 +4,7 @@
 
 use thiserror::Error;
 
-use crate::log_message::types::Gender;
+pub use crate::log_message::types::Gender;
 
 use super::types::{FuncName, Function, IfParam, Obj, Param, Tag, TagName};
 
