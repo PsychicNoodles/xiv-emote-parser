@@ -31,8 +31,6 @@ where
 
     let condition_texts = message.process_string()?;
 
-    println!("{:?}", condition_texts);
-
     Ok(condition_texts
         .into_iter()
         .filter_map(|ctxt| {
