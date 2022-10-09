@@ -92,32 +92,42 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
     ]
     .map(|r| r.expect("couldn't set up answers"));
 
-    for emote in emotes {
-        let name = emote["Name"]
-            .as_str()
-            .expect("emote didn't have a name")
-            .to_string();
-        let messages = [
-            &emote["LogMessageTargeted"]["Text_en"],
-            &emote["LogMessageTargeted"]["Text_ja"],
-            &emote["LogMessageUntargeted"]["Text_en"],
-            &emote["LogMessageUntargeted"]["Text_ja"],
-        ]
-        .map(|v| v.as_str().expect("couldn't find log message data"));
+    emotes
+        .into_iter()
+        .map(|emote| {
+            let name = emote["Name"]
+                .as_str()
+                .expect("emote didn't have a name")
+                .to_string();
+            let messages = [
+                &emote["LogMessageTargeted"]["Text_en"],
+                &emote["LogMessageTargeted"]["Text_ja"],
+                &emote["LogMessageUntargeted"]["Text_en"],
+                &emote["LogMessageUntargeted"]["Text_ja"],
+            ]
+            .into_iter()
+            .filter_map(|v| match v.as_str() {
+                Some(s) => Some(s),
+                None => {
+                    println!("skipping {} due to no messages", name);
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
 
-        for message in messages {
-            for answers in &answerses {
-                let text = process_log_message(message, answers);
-                if let Err(e) = text {
-                    return Err(MessageTestError {
-                        name,
-                        original: message.to_string(),
-                        error: e,
-                    });
+            for message in messages {
+                for answers in &answerses {
+                    let text = process_log_message(message, answers);
+                    if let Err(e) = text {
+                        return Err(MessageTestError {
+                            name,
+                            original: message.to_string(),
+                            error: e,
+                        });
+                    }
                 }
             }
-        }
-    }
-
-    Ok(())
+            Ok(())
+        })
+        .collect()
 }
