@@ -159,8 +159,8 @@ pub enum IfParam {
 #[derive(Debug, Clone)]
 pub struct IfElse {
     pub if_cond: IfParam,
-    pub if_then: IfElseThen,
-    pub else_then: IfElseThen,
+    pub if_then: Vec<IfElseThen>,
+    pub else_then: Vec<IfElseThen>,
 }
 
 impl EmoteTextProcessor for IfElse {
@@ -181,32 +181,36 @@ impl EmoteTextProcessor for IfElse {
         });
 
         let mut res = vec![];
-        match &self.if_then {
-            IfElseThen::Function(f) => {
-                res.append(&mut f.process(if_conds.clone())?);
-            }
-            IfElseThen::Element(e) => {
-                res.append(&mut e.process(if_conds.clone())?);
-            }
-            IfElseThen::Text(t) => {
-                res.push(ConditionText {
-                    conds: if_conds.clone(),
-                    text: Text::Static(t.clone()),
-                });
+        for then in &self.if_then {
+            match then {
+                IfElseThen::Function(f) => {
+                    res.append(&mut f.process(if_conds.clone())?);
+                }
+                IfElseThen::Element(e) => {
+                    res.append(&mut e.process(if_conds.clone())?);
+                }
+                IfElseThen::Text(t) => {
+                    res.push(ConditionText {
+                        conds: if_conds.clone(),
+                        text: Text::Static(t.clone()),
+                    });
+                }
             }
         }
-        match &self.else_then {
-            IfElseThen::Function(f) => {
-                res.append(&mut f.process(else_conds.clone())?);
-            }
-            IfElseThen::Element(e) => {
-                res.append(&mut e.process(else_conds.clone())?);
-            }
-            IfElseThen::Text(t) => {
-                res.push(ConditionText {
-                    conds: else_conds.clone(),
-                    text: Text::Static(t.clone()),
-                });
+        for then in &self.else_then {
+            match then {
+                IfElseThen::Function(f) => {
+                    res.append(&mut f.process(else_conds.clone())?);
+                }
+                IfElseThen::Element(e) => {
+                    res.append(&mut e.process(else_conds.clone())?);
+                }
+                IfElseThen::Text(t) => {
+                    res.push(ConditionText {
+                        conds: else_conds.clone(),
+                        text: Text::Static(t.clone()),
+                    });
+                }
             }
         }
         Ok(res)

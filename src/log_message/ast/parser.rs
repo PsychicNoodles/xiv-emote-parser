@@ -52,11 +52,17 @@ impl LogMessageParser {
         ))
     }
 
-    fn if_else_then(input: Node) -> Result<IfElseThen> {
+    fn if_else_then_content(input: Node) -> Result<IfElseThen> {
         Ok(match_nodes!(input.into_children();
             [function(fun)] => IfElseThen::Function(fun),
             [element(ele)] => IfElseThen::Element(ele),
             [text(text)] => IfElseThen::Text(text),
+        ))
+    }
+
+    fn if_else_then(input: Node) -> Result<Vec<IfElseThen>> {
+        Ok(match_nodes!(input.into_children();
+            [if_else_then_content(content)..] => content.collect()
         ))
     }
 

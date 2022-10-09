@@ -27,9 +27,11 @@ auto_closing_tag = { "<" ~ tag_name ~ ("(" ~ param ~ ("," ~ param)* ~ ")")? ~ "/
 close_tag = { "</" ~ tag_name ~ ">" }
 
 // elements
-if_else_then = { function | element | text }
+// pest_consume does not allow multiple variable length patterns in one rule
+if_else_then_content = { function | element | text }
+if_else_then = { if_else_then_content+ }
 if_param = { function | auto_closing_tag }
-if_else_element = { "<If(" ~ if_param ~ ")>" ~ if_else_then+ ~ "<Else/>" ~ if_else_then+ ~ "</If>" }
+if_else_element = { "<If(" ~ if_param ~ ")>" ~ if_else_then ~ "<Else/>" ~ if_else_then ~ "</If>" }
 element = {
   if_else_element |
   // currently unused
