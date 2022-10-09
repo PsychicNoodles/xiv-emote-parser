@@ -84,7 +84,7 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
 
     let char1 = Character::new("K'haldru Alaba", Gender::Female, true, true);
     let char2 = Character::new("Puruo Jelly", Gender::Male, true, false);
-    let char3 = Character::new("Ardbert Bestboy", Gender::Male, false, false);
+    let char3 = Character::new("Nanamo Ul Namo", Gender::Female, false, false);
     let answerses = [
         LogMessageAnswers::new(char1.clone(), char2.clone()),
         LogMessageAnswers::new(char2.clone(), char3.clone()),
@@ -109,7 +109,7 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
             .filter_map(|v| match v.as_str() {
                 Some(s) => Some(s),
                 None => {
-                    println!("skipping {} due to no messages", name);
+                    eprintln!("skipping {} due to no messages", name);
                     None
                 }
             })
@@ -118,12 +118,23 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
             for message in messages {
                 for answers in &answerses {
                     let text = process_log_message(message, answers);
-                    if let Err(e) = text {
-                        return Err(MessageTestError {
-                            name,
-                            original: message.to_string(),
-                            error: e,
-                        });
+                    match text {
+                        Err(e) => {
+                            return Err(MessageTestError {
+                                name,
+                                original: message.to_string(),
+                                error: e,
+                            });
+                        }
+                        Ok(t) => {
+                            println!(
+                                "{} ({:?}, {:?}): {}",
+                                name,
+                                answers.origin_character(),
+                                answers.target_character(),
+                                t
+                            );
+                        }
                     }
                 }
             }

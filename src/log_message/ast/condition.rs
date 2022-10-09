@@ -117,6 +117,14 @@ impl LogMessageAnswers {
             })
         }
     }
+
+    pub fn origin_character(&self) -> &Character {
+        &self.origin_character
+    }
+
+    pub fn target_character(&self) -> &Character {
+        &self.target_character
+    }
 }
 
 impl ConditionAnswer for LogMessageAnswers {
