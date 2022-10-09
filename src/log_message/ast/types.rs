@@ -174,7 +174,7 @@ impl EmoteTextProcessor for IfElse {
             cond: if_cond,
             is_true: true,
         });
-        let mut else_conds = conds.clone();
+        let mut else_conds = conds;
         else_conds.push(ConditionState {
             cond: if_cond,
             is_true: false,
