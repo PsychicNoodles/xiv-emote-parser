@@ -55,6 +55,17 @@ fn can_parse_en_with_ast_gendered_speaker() -> Result<(), impl Error> {
     text.map(|_| ())
 }
 
+#[test]
+fn can_parse_en_cry() -> Result<(), impl Error> {
+    let log_msg = "<Clickable(<If(Equal(ObjectParameter(1),ObjectParameter(2)))>your<Else/><If(Equal(ObjectParameter(1),ObjectParameter(2)))>you<Else/><If(PlayerParameter(7))><SheetEn(ObjStr,2,PlayerParameter(7),1,1)/><Else/>ObjectParameter(2)</If></If>'s</If>)/> eyes brim over with tears.";
+
+    let origin = Character::new("K'haldru Alaba", Gender::Female, true, true);
+    let target = Character::new("Puruo Jelly", Gender::Male, true, false);
+    let text = process_log_message(log_msg, &LogMessageAnswers::new(origin, target).unwrap());
+    println!("{:?}", text);
+    text.map(|_| ())
+}
+
 #[derive(Debug, Error)]
 #[error("Failed to parse {name} ({error:?}) (original: {original})")]
 struct MessageTestError {

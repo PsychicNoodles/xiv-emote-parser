@@ -54,7 +54,8 @@ impl LogMessageParser {
 
     fn if_else_then(input: Node) -> Result<IfElseThen> {
         Ok(match_nodes!(input.into_children();
-            [param(param)] => IfElseThen::Param(param),
+            [function(fun)] => IfElseThen::Function(fun),
+            [element(ele)] => IfElseThen::Element(ele),
             [text(text)] => IfElseThen::Text(text),
         ))
     }

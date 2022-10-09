@@ -126,7 +126,8 @@ impl EmoteTextProcessor for Param {
 
 #[derive(Debug, Clone)]
 pub enum IfElseThen {
-    Param(Param),
+    Function(Function),
+    Element(Element),
     Text(String),
 }
 
@@ -181,8 +182,11 @@ impl EmoteTextProcessor for IfElse {
 
         let mut res = vec![];
         match &self.if_then {
-            IfElseThen::Param(p) => {
-                res.append(&mut p.process(if_conds.clone())?);
+            IfElseThen::Function(f) => {
+                res.append(&mut f.process(if_conds.clone())?);
+            }
+            IfElseThen::Element(e) => {
+                res.append(&mut e.process(if_conds.clone())?);
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
@@ -192,8 +196,11 @@ impl EmoteTextProcessor for IfElse {
             }
         }
         match &self.else_then {
-            IfElseThen::Param(p) => {
-                res.append(&mut p.process(else_conds)?);
+            IfElseThen::Function(f) => {
+                res.append(&mut f.process(else_conds.clone())?);
+            }
+            IfElseThen::Element(e) => {
+                res.append(&mut e.process(else_conds.clone())?);
             }
             IfElseThen::Text(t) => {
                 res.push(ConditionText {
