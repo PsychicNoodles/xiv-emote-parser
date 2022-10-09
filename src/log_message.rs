@@ -7,6 +7,7 @@ mod parser;
 mod types;
 
 pub use self::ast::condition;
+pub use self::ast::condition::LogMessageAnswers;
 pub use self::parser::process_log_message;
 pub use self::parser::EmoteTextResult;
 use self::parser::Rule;

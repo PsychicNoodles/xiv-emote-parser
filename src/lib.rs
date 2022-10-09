@@ -2,3 +2,4 @@
 //! and generates text output given information about related players.
 
 pub mod log_message;
+pub mod repository;

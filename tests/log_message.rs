@@ -1,11 +1,11 @@
 use std::error::Error;
 
-use discord_xiv_emotes::log_message::{
+use serde_json::Value;
+use thiserror::Error;
+use xiv_emote_parser::log_message::{
     condition::{Character, Gender, LogMessageAnswers},
     process_log_message, EmoteTextError,
 };
-use serde_json::Value;
-use thiserror::Error;
 
 // #[test]
 // fn can_parse_en() {
