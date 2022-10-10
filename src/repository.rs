@@ -195,41 +195,47 @@ impl LogMessageRepository {
         self.query = query;
     }
 
-    pub fn targeted(&self, name: String, language: Language) -> Result<&str> {
+    pub fn targeted(&self, name: &str, language: Language) -> Result<&str> {
         self.messages
-            .get(&name)
+            .get(name)
             .and_then(|m| m.get(&language))
             .map(|p| p.targeted.as_str())
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    pub fn untargeted(&self, name: String, language: Language) -> Result<&str> {
+    pub fn untargeted(&self, name: &str, language: Language) -> Result<&str> {
         self.messages
-            .get(&name)
+            .get(name)
             .and_then(|m| m.get(&language))
             .map(|p| p.untargeted.as_str())
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    pub fn messages(&self, name: String) -> Result<[&str; 4]> {
+    fn extract_messages(m: &HashMap<Language, LogMessagePair>) -> Result<[&str; 4]> {
+        let en = m
+            .get(&Language::En)
+            .ok_or(LogMessageRepositoryError::NotFound)?;
+        let jp = m
+            .get(&Language::Ja)
+            .ok_or(LogMessageRepositoryError::NotFound)?;
+        Ok([
+            en.targeted.as_str(),
+            en.untargeted.as_str(),
+            jp.targeted.as_str(),
+            jp.untargeted.as_str(),
+        ])
+    }
+
+    pub fn messages(&self, name: &str) -> Result<[&str; 4]> {
         self.messages
-            .get(&name)
+            .get(name)
             .ok_or(LogMessageRepositoryError::NotFound)
-            .map(|m| {
-                let en = m
-                    .get(&Language::En)
-                    .ok_or(LogMessageRepositoryError::NotFound)?;
-                let jp = m
-                    .get(&Language::Ja)
-                    .ok_or(LogMessageRepositoryError::NotFound)?;
-                Ok([
-                    en.targeted.as_str(),
-                    en.untargeted.as_str(),
-                    jp.targeted.as_str(),
-                    jp.untargeted.as_str(),
-                ])
-            })
+            .map(Self::extract_messages)
             .and_then(convert::identity)
+    }
+
+    pub fn all_messages(&self) -> Result<Vec<[&str; 4]>> {
+        self.messages.values().map(Self::extract_messages).collect()
     }
 }
 
