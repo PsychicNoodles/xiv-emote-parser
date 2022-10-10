@@ -122,22 +122,29 @@ impl LogMessageRepository {
         data.results
             .into_iter()
             .fold(HashMap::new(), |mut map, result| {
-                let mut m = HashMap::new();
-                m.insert(
-                    Language::En,
-                    LogMessagePair {
-                        targeted: result.log_message_targeted.text_en,
-                        untargeted: result.log_message_untargeted.text_en,
-                    },
-                );
-                m.insert(
-                    Language::Ja,
-                    LogMessagePair {
-                        targeted: result.log_message_targeted.text_ja,
-                        untargeted: result.log_message_untargeted.text_ja,
-                    },
-                );
-                map.insert(result.name, m);
+                if let self::xivapi::EmoteData {
+                    log_message_targeted: Some(targeted),
+                    log_message_untargeted: Some(untargeted),
+                    name: Some(name),
+                } = result
+                {
+                    let mut m = HashMap::new();
+                    m.insert(
+                        Language::En,
+                        LogMessagePair {
+                            targeted: targeted.text_en,
+                            untargeted: untargeted.text_en,
+                        },
+                    );
+                    m.insert(
+                        Language::Ja,
+                        LogMessagePair {
+                            targeted: targeted.text_ja,
+                            untargeted: untargeted.text_ja,
+                        },
+                    );
+                    map.insert(name, m);
+                }
                 map
             })
     }
@@ -237,9 +244,9 @@ mod xivapi {
 
     #[derive(Debug, Clone, Deserialize)]
     pub struct EmoteData {
-        pub log_message_targeted: LogMessageData,
-        pub log_message_untargeted: LogMessageData,
-        pub name: String,
+        pub log_message_targeted: Option<LogMessageData>,
+        pub log_message_untargeted: Option<LogMessageData>,
+        pub name: Option<String>,
     }
 
     #[derive(Debug, Clone, Deserialize)]
