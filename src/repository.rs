@@ -115,20 +115,11 @@ impl LogMessageRepository {
         })
     }
 
-    #[cfg(feature = "xivapi")]
-    async fn load_xivapi(
-        client: &reqwest::Client,
-        query: &[(String, String)],
-    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
-        let res = client
-            .get("https://xivapi.com/emote")
-            .query(&query)
-            .send()
-            .await?;
-        let data: self::xivapi::Response = serde_json::from_str(res.text().await?.as_str())?;
-
-        Ok(data
-            .results
+    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    fn parse_xivapi(
+        data: self::xivapi::Response,
+    ) -> HashMap<String, HashMap<Language, LogMessagePair>> {
+        data.results
             .into_iter()
             .fold(HashMap::new(), |mut map, result| {
                 let mut m = HashMap::new();
@@ -148,7 +139,22 @@ impl LogMessageRepository {
                 );
                 map.insert(result.name, m);
                 map
-            }))
+            })
+    }
+
+    #[cfg(feature = "xivapi")]
+    async fn load_xivapi(
+        client: &reqwest::Client,
+        query: &[(String, String)],
+    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
+        let res = client
+            .get("https://xivapi.com/emote")
+            .query(&query)
+            .send()
+            .await?;
+        let data: self::xivapi::Response = serde_json::from_str(res.text().await?.as_str())?;
+
+        Ok(Self::parse_xivapi(data))
     }
 
     #[cfg(feature = "xivapi_blocking")]
@@ -162,28 +168,7 @@ impl LogMessageRepository {
             .send()?;
         let data: self::xivapi::Response = serde_json::from_str(res.text()?.as_str())?;
 
-        Ok(data
-            .results
-            .into_iter()
-            .fold(HashMap::new(), |mut map, result| {
-                let mut m = HashMap::new();
-                m.insert(
-                    Language::En,
-                    LogMessagePair {
-                        targeted: result.log_message_targeted.text_en,
-                        untargeted: result.log_message_untargeted.text_en,
-                    },
-                );
-                m.insert(
-                    Language::Ja,
-                    LogMessagePair {
-                        targeted: result.log_message_targeted.text_ja,
-                        untargeted: result.log_message_untargeted.text_ja,
-                    },
-                );
-                map.insert(result.name, m);
-                map
-            }))
+        Ok(Self::parse_xivapi(data))
     }
 
     #[cfg(feature = "xivapi")]
@@ -206,8 +191,7 @@ impl LogMessageRepository {
     pub fn targeted(&self, name: String, language: Language) -> Result<&str> {
         self.messages
             .get(&name)
-            .map(|m| m.get(&language))
-            .flatten()
+            .and_then(|m| m.get(&language))
             .map(|p| p.targeted.as_str())
             .ok_or(LogMessageRepositoryError::NotFound)
     }
@@ -215,8 +199,7 @@ impl LogMessageRepository {
     pub fn untargeted(&self, name: String, language: Language) -> Result<&str> {
         self.messages
             .get(&name)
-            .map(|m| m.get(&language))
-            .flatten()
+            .and_then(|m| m.get(&language))
             .map(|p| p.untargeted.as_str())
             .ok_or(LogMessageRepositoryError::NotFound)
     }
