@@ -1,17 +1,23 @@
 #[cfg(feature = "json")]
 use {serde_derive::Deserialize, serde_json};
 
+#[cfg(feature = "xivapi")]
+use reqwest;
+
 use std::{collections::HashMap, convert};
 
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum LogMessageRepositoryError {
-    #[cfg(feature = "json")]
-    #[error("Invalid json input string")]
-    InvalidJsonInput(#[from] serde_json::Error),
     #[error("Message not found")]
     NotFound,
+    #[cfg(any(feature = "json", feature = "xivapi", feature = "xivapi_blocking"))]
+    #[error("Invalid json input string")]
+    InvalidJsonInput(#[from] serde_json::Error),
+    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[error("A network error occurred")]
+    Network(#[from] reqwest::Error),
 }
 
 pub type Result<T> = std::result::Result<T, LogMessageRepositoryError>;
@@ -25,9 +31,10 @@ struct LogMessagePair {
 #[derive(Debug, Clone, Default)]
 pub struct LogMessageRepository {
     messages: HashMap<String, HashMap<Language, LogMessagePair>>,
-    #[cfg(feature = "xivapi")]
-    #[cfg(feature = "xivapi_blocking")]
-    api_key: Option<String>,
+    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    client: reqwest::Client,
+    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    query: Vec<(String, String)>,
 }
 
 impl LogMessageRepository {
@@ -55,15 +62,77 @@ impl LogMessageRepository {
             );
         Ok(LogMessageRepository {
             messages,
-            #[cfg(feature = "xivapi")]
-            #[cfg(feature = "xivapi_blocking")]
-            api_key: None,
+            #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+            client: reqwest::Client::new(),
+            #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+            query: Vec::with_capacity(3),
         })
     }
 
     #[cfg(feature = "xivapi")]
-    pub fn from_xivapi(api_key: &str) -> Result<LogMessageRepository> {
-        todo!()
+    pub async fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
+        let client = reqwest::Client::new();
+        let mut query = Vec::with_capacity(3);
+        query.push(("snake_case".to_string(), "1".to_string()));
+        query.push((
+            "columns".to_string(),
+            "LogMessageTargeted,LogMessageUntargeted,Name".to_string(),
+        ));
+        if let Some(key) = api_key {
+            query.push(("private_key".to_string(), key));
+        }
+        Ok(LogMessageRepository {
+            messages: Self::load_xivapi(&client, &query).await?,
+            client: client,
+            query,
+        })
+    }
+
+    #[cfg(feature = "xivapi")]
+    async fn load_xivapi(
+        client: &reqwest::Client,
+        query: &[(String, String)],
+    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
+        let res = client
+            .get("https://xivapi.com/emote")
+            .query(&query)
+            .send()
+            .await?;
+        let data: self::xivapi::Response = serde_json::from_str(res.text().await?.as_str())?;
+
+        Ok(data
+            .results
+            .into_iter()
+            .fold(HashMap::new(), |mut map, result| {
+                let mut m = HashMap::new();
+                m.insert(
+                    Language::En,
+                    LogMessagePair {
+                        targeted: result.log_message_targeted.text_en,
+                        untargeted: result.log_message_untargeted.text_en,
+                    },
+                );
+                m.insert(
+                    Language::Ja,
+                    LogMessagePair {
+                        targeted: result.log_message_targeted.text_ja,
+                        untargeted: result.log_message_untargeted.text_ja,
+                    },
+                );
+                map.insert(result.name, m);
+                map
+            }))
+    }
+
+    #[cfg(feature = "xivapi")]
+    pub async fn reload_messages(&mut self) -> Result<()> {
+        self.messages = Self::load_xivapi(&self.client, &self.query).await?;
+        Ok(())
+    }
+
+    #[cfg(feature = "xivapi")]
+    pub fn set_xivapi_query(&mut self, query: Vec<(String, String)>) {
+        self.query = query;
     }
 
     pub fn targeted(&self, name: String, language: Language) -> Result<&str> {
@@ -93,7 +162,7 @@ impl LogMessageRepository {
                     .get(&Language::En)
                     .ok_or(LogMessageRepositoryError::NotFound)?;
                 let jp = m
-                    .get(&Language::Jp)
+                    .get(&Language::Ja)
                     .ok_or(LogMessageRepositoryError::NotFound)?;
                 Ok([
                     en.targeted.as_str(),
@@ -106,11 +175,34 @@ impl LogMessageRepository {
     }
 }
 
+#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+mod xivapi {
+    use serde_derive::Deserialize;
+
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct Response {
+        pub results: Vec<EmoteData>,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct EmoteData {
+        pub log_message_targeted: LogMessageData,
+        pub log_message_untargeted: LogMessageData,
+        pub name: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct LogMessageData {
+        pub text_en: String,
+        pub text_ja: String,
+    }
+}
+
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "json", derive(Deserialize))]
 pub enum Language {
     En,
-    Jp,
+    Ja,
     // not yet supported
     // De,
     // Fr

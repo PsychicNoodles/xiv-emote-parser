@@ -21,8 +21,8 @@ reqwest = { version = "0.11", features = ["json"], optional = true }
 
 [features]
 json = ["dep:serde", "dep:serde_derive", "dep:serde_json"]
-xivapi = ["reqwest"]
-xivapi_blocking = ["reqwest/blocking"]
+xivapi = ["reqwest", "json"]
+xivapi_blocking = ["reqwest/blocking", "json"]
 
 [dev-dependencies]
 serde = "1.0"
