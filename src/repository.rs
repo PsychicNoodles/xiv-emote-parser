@@ -1,7 +1,7 @@
 #[cfg(feature = "json")]
 use {serde_derive::Deserialize, serde_json};
 
-#[cfg(feature = "xivapi")]
+#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
 use reqwest;
 
 use std::{collections::HashMap, convert};
@@ -31,8 +31,10 @@ struct LogMessagePair {
 #[derive(Debug, Clone, Default)]
 pub struct LogMessageRepository {
     messages: HashMap<String, HashMap<Language, LogMessagePair>>,
-    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(any(feature = "xivapi"))]
     client: reqwest::Client,
+    #[cfg(any(feature = "xivapi_blocking"))]
+    client_blocking: reqwest::blocking::Client,
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
     query: Vec<(String, String)>,
 }
@@ -62,8 +64,10 @@ impl LogMessageRepository {
             );
         Ok(LogMessageRepository {
             messages,
-            #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+            #[cfg(feature = "xivapi")]
             client: reqwest::Client::new(),
+            #[cfg(feature = "xivapi_blocking")]
+            client_blocking: reqwest::blocking::Client::new(),
             #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
             query: Vec::with_capacity(3),
         })
@@ -83,7 +87,30 @@ impl LogMessageRepository {
         }
         Ok(LogMessageRepository {
             messages: Self::load_xivapi(&client, &query).await?,
-            client: client,
+            client,
+            #[cfg(feature = "xivapi_blocking")]
+            client_blocking: reqwest::blocking::Client::new(),
+            query,
+        })
+    }
+
+    #[cfg(feature = "xivapi_blocking")]
+    pub fn from_xivapi_blocking(api_key: Option<String>) -> Result<LogMessageRepository> {
+        let client = reqwest::blocking::Client::new();
+        let mut query = Vec::with_capacity(3);
+        query.push(("snake_case".to_string(), "1".to_string()));
+        query.push((
+            "columns".to_string(),
+            "LogMessageTargeted,LogMessageUntargeted,Name".to_string(),
+        ));
+        if let Some(key) = api_key {
+            query.push(("private_key".to_string(), key));
+        }
+        Ok(LogMessageRepository {
+            messages: Self::load_xivapi_blocking(&client, &query)?,
+            #[cfg(feature = "xivapi")]
+            client: reqwest::Client::new(),
+            client_blocking: client,
             query,
         })
     }
@@ -124,9 +151,50 @@ impl LogMessageRepository {
             }))
     }
 
+    #[cfg(feature = "xivapi_blocking")]
+    fn load_xivapi_blocking(
+        client: &reqwest::blocking::Client,
+        query: &[(String, String)],
+    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
+        let res = client
+            .get("https://xivapi.com/emote")
+            .query(&query)
+            .send()?;
+        let data: self::xivapi::Response = serde_json::from_str(res.text()?.as_str())?;
+
+        Ok(data
+            .results
+            .into_iter()
+            .fold(HashMap::new(), |mut map, result| {
+                let mut m = HashMap::new();
+                m.insert(
+                    Language::En,
+                    LogMessagePair {
+                        targeted: result.log_message_targeted.text_en,
+                        untargeted: result.log_message_untargeted.text_en,
+                    },
+                );
+                m.insert(
+                    Language::Ja,
+                    LogMessagePair {
+                        targeted: result.log_message_targeted.text_ja,
+                        untargeted: result.log_message_untargeted.text_ja,
+                    },
+                );
+                map.insert(result.name, m);
+                map
+            }))
+    }
+
     #[cfg(feature = "xivapi")]
     pub async fn reload_messages(&mut self) -> Result<()> {
         self.messages = Self::load_xivapi(&self.client, &self.query).await?;
+        Ok(())
+    }
+
+    #[cfg(feature = "xivapi_blocking")]
+    pub fn reload_messages_blocking(&mut self) -> Result<()> {
+        self.messages = Self::load_xivapi_blocking(&self.client_blocking, &self.query)?;
         Ok(())
     }
 
