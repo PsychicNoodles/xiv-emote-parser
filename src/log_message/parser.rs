@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use pest_consume::Parser;
 
 pub use super::ast::types::{ConditionState, ConditionText, ConditionTexts, Text};
@@ -23,8 +25,8 @@ where
 
     Ok(condition_texts
         .map_texts(answers, |text| match text {
-            Text::Dynamic(d) => Some(answers.as_string(d)),
-            Text::Static(s) => Some(s.to_string()),
+            Text::Dynamic(d) => Some(answers.as_str(d)),
+            Text::Static(s) => Some(Cow::from(s.to_string())),
         })
         .collect())
 }

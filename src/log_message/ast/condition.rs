@@ -2,6 +2,8 @@
 //! Abstracts actual calls so that full output can be pre-calculated with
 //! specific portions that require player data.
 
+use std::borrow::Cow;
+
 use thiserror::Error;
 
 pub use crate::log_message::types::Gender;
@@ -61,26 +63,32 @@ pub trait ConditionAnswer {
 }
 
 pub trait DynamicTextAnswer {
-    fn as_string(&self, text: &DynamicText) -> String;
+    fn as_str(&self, text: &DynamicText) -> Cow<'static, str>;
 }
 
 pub trait Answers: ConditionAnswer + DynamicTextAnswer {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Character {
-    pub name: String,
+    pub name: Cow<'static, str>,
     pub gender: Gender,
     pub is_pc: bool,
     pub is_self: bool,
 }
 
 impl Character {
-    pub fn new<N>(name: N, gender: Gender, is_pc: bool, is_self: bool) -> Character
-    where
-        N: ToString,
-    {
+    pub const fn new(name: &'static str, gender: Gender, is_pc: bool, is_self: bool) -> Character {
         Character {
-            name: name.to_string(),
+            name: Cow::Borrowed(name),
+            gender,
+            is_pc,
+            is_self,
+        }
+    }
+
+    pub fn new_from_string(name: String, gender: Gender, is_pc: bool, is_self: bool) -> Character {
+        Character {
+            name: Cow::from(name),
             gender,
             is_pc,
             is_self,
@@ -142,7 +150,7 @@ impl ConditionAnswer for LogMessageAnswers {
 }
 
 impl DynamicTextAnswer for LogMessageAnswers {
-    fn as_string(&self, text: &DynamicText) -> String {
+    fn as_str(&self, text: &DynamicText) -> Cow<'static, str> {
         match text {
             // afaik names are the same regardless of language
             // todo add option to append world name
