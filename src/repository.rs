@@ -237,6 +237,10 @@ impl LogMessageRepository {
     pub fn all_messages(&self) -> Result<Vec<[&str; 4]>> {
         self.messages.values().map(Self::extract_messages).collect()
     }
+
+    pub fn contains_emote(&self, name: &str) -> bool {
+        self.messages.contains_key(name)
+    }
 }
 
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
