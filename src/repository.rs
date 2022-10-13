@@ -211,22 +211,22 @@ impl LogMessageRepository {
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    fn extract_messages(m: &HashMap<Language, LogMessagePair>) -> Result<[&str; 4]> {
+    fn extract_messages(m: &HashMap<Language, LogMessagePair>) -> Result<EmoteMessages> {
         let en = m
             .get(&Language::En)
             .ok_or(LogMessageRepositoryError::NotFound)?;
         let jp = m
             .get(&Language::Ja)
             .ok_or(LogMessageRepositoryError::NotFound)?;
-        Ok([
-            en.targeted.as_str(),
-            en.untargeted.as_str(),
-            jp.targeted.as_str(),
-            jp.untargeted.as_str(),
-        ])
+        Ok(EmoteMessages {
+            en_targeted: en.targeted.as_str(),
+            en_untargeted: en.untargeted.as_str(),
+            jp_targeted: jp.targeted.as_str(),
+            jp_untargeted: jp.untargeted.as_str(),
+        })
     }
 
-    pub fn messages(&self, name: &str) -> Result<[&str; 4]> {
+    pub fn messages(&self, name: &str) -> Result<EmoteMessages> {
         self.messages
             .get(name)
             .ok_or(LogMessageRepositoryError::NotFound)
@@ -234,13 +234,20 @@ impl LogMessageRepository {
             .and_then(convert::identity)
     }
 
-    pub fn all_messages(&self) -> Result<Vec<[&str; 4]>> {
+    pub fn all_messages(&self) -> Result<Vec<EmoteMessages>> {
         self.messages.values().map(Self::extract_messages).collect()
     }
 
     pub fn contains_emote(&self, name: &str) -> bool {
         self.messages.contains_key(name)
     }
+}
+
+pub struct EmoteMessages<'a> {
+    pub en_targeted: &'a str,
+    pub en_untargeted: &'a str,
+    pub jp_targeted: &'a str,
+    pub jp_untargeted: &'a str,
 }
 
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
