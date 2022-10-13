@@ -1,7 +1,7 @@
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use super::condition::{Condition, ConditionError, DynamicText, DynamicTextError};
+use super::condition::{Condition, ConditionAnswer, ConditionError, DynamicText, DynamicTextError};
 
 #[derive(Debug, Clone, Error)]
 pub enum EmoteTextProcessError {
@@ -54,6 +54,35 @@ pub struct ConditionText {
     pub text: Text,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConditionTexts(Vec<ConditionText>);
+
+impl ConditionTexts {
+    /// Maps [Text] value of contained [ConditionText]s onto text_handler, filtering to only return
+    /// values that are [Some].
+    pub fn map_texts<'a, F, R, C>(
+        &'a self,
+        cond_answer: &'a C,
+        text_handler: F,
+    ) -> impl Iterator<Item = R> + '_
+    where
+        F: Fn(&Text) -> Option<R> + 'a,
+        C: ConditionAnswer,
+    {
+        self.0.iter().filter_map(move |ctxt| {
+            let ConditionText { conds, text } = ctxt;
+            if conds
+                .iter()
+                .all(|ConditionState { cond, is_true }| cond_answer.as_bool(cond) == *is_true)
+            {
+                text_handler(text)
+            } else {
+                None
+            }
+        })
+    }
+}
+
 trait EmoteTextProcessor {
     // todo maybe make this cow
     fn process(
@@ -66,12 +95,13 @@ trait EmoteTextProcessor {
 pub struct Message(pub Vec<MessagePart>);
 
 impl Message {
-    pub fn process_string(&self) -> Result<Vec<ConditionText>, EmoteTextProcessError> {
+    pub fn process_string(&self) -> Result<ConditionTexts, EmoteTextProcessError> {
         self.0
             .iter()
             .map(|part| part.process(vec![]))
             .collect::<Result<Vec<_>, EmoteTextProcessError>>()
             .map(|vecs| vecs.into_iter().flatten().collect())
+            .map(ConditionTexts)
     }
 }
 

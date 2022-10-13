@@ -1,6 +1,6 @@
 use pest_consume::Parser;
 
-pub use super::ast::types::{ConditionState, ConditionText, Text};
+pub use super::ast::types::{ConditionState, ConditionText, ConditionTexts, Text};
 use super::{ast::condition::Answers, EmoteTextError};
 
 #[derive(Parser)]
@@ -22,25 +22,14 @@ where
     let condition_texts = extract_condition_texts(log_msg)?;
 
     Ok(condition_texts
-        .into_iter()
-        .filter_map(|ctxt| {
-            if ctxt
-                .conds
-                .into_iter()
-                .all(|ConditionState { cond, is_true }| answers.as_bool(cond) == is_true)
-            {
-                match ctxt.text {
-                    Text::Dynamic(d) => Some(answers.as_string(d)),
-                    Text::Static(s) => Some(s),
-                }
-            } else {
-                None
-            }
+        .map_texts(answers, |text| match text {
+            Text::Dynamic(d) => Some(answers.as_string(d)),
+            Text::Static(s) => Some(s.to_string()),
         })
         .collect())
 }
 
-pub fn extract_condition_texts(log_msg: &str) -> EmoteTextResult<Vec<ConditionText>> {
+pub fn extract_condition_texts(log_msg: &str) -> EmoteTextResult<ConditionTexts> {
     let root = LogMessageParser::parse(Rule::message, log_msg)
         .map_err(EmoteTextError::ParseError)?
         .single()

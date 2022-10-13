@@ -57,11 +57,11 @@ pub enum DynamicText {
 }
 
 pub trait ConditionAnswer {
-    fn as_bool(&self, cond: Condition) -> bool;
+    fn as_bool(&self, cond: &Condition) -> bool;
 }
 
 pub trait DynamicTextAnswer {
-    fn as_string(&self, text: DynamicText) -> String;
+    fn as_string(&self, text: &DynamicText) -> String;
 }
 
 pub trait Answers: ConditionAnswer + DynamicTextAnswer {}
@@ -128,7 +128,7 @@ impl LogMessageAnswers {
 }
 
 impl ConditionAnswer for LogMessageAnswers {
-    fn as_bool(&self, cond: Condition) -> bool {
+    fn as_bool(&self, cond: &Condition) -> bool {
         match cond {
             Condition::IsSelfOrigin => self.origin_character.is_self,
             Condition::IsSelfTarget => self.target_character.is_self,
@@ -142,7 +142,7 @@ impl ConditionAnswer for LogMessageAnswers {
 }
 
 impl DynamicTextAnswer for LogMessageAnswers {
-    fn as_string(&self, text: DynamicText) -> String {
+    fn as_string(&self, text: &DynamicText) -> String {
         match text {
             // afaik names are the same regardless of language
             // todo add option to append world name
