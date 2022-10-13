@@ -83,9 +83,9 @@ impl ConditionTexts {
     }
 
     /// Executes text_handler for each [Text] value of contained [ConditionText]s
-    pub fn for_each_texts<'a, F, C>(&'a self, cond_answer: &'a C, text_handler: F)
+    pub fn for_each_texts<'a, F, C>(&'a self, cond_answer: &'a C, mut text_handler: F)
     where
-        F: Fn(&Text),
+        F: FnMut(&Text),
         C: ConditionAnswer,
     {
         self.0.iter().for_each(move |ctxt| {
