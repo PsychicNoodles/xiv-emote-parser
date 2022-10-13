@@ -58,8 +58,8 @@ pub struct ConditionText {
 pub struct ConditionTexts(Vec<ConditionText>);
 
 impl ConditionTexts {
-    /// Maps [Text] value of contained [ConditionText]s onto text_handler, filtering to only return
-    /// values that are [Some].
+    /// Executes text_handler for each [Text] value of contained [ConditionText]s, filtering to only return
+    /// values that are [Some] and returning the iterator result.
     pub fn map_texts<'a, F, R, C>(
         &'a self,
         cond_answer: &'a C,
@@ -80,6 +80,23 @@ impl ConditionTexts {
                 None
             }
         })
+    }
+
+    /// Executes text_handler for each [Text] value of contained [ConditionText]s
+    pub fn for_each_texts<'a, F, C>(&'a self, cond_answer: &'a C, text_handler: F)
+    where
+        F: Fn(&Text),
+        C: ConditionAnswer,
+    {
+        self.0.iter().for_each(move |ctxt| {
+            let ConditionText { conds, text } = ctxt;
+            if conds
+                .iter()
+                .all(|ConditionState { cond, is_true }| cond_answer.as_bool(cond) == *is_true)
+            {
+                text_handler(text);
+            }
+        });
     }
 }
 
