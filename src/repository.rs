@@ -143,7 +143,7 @@ impl LogMessageRepository {
                             untargeted: untargeted.text_ja,
                         },
                     );
-                    map.insert(name, m);
+                    map.insert(name.to_lowercase(), m);
                 }
                 map
             })
