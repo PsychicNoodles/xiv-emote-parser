@@ -3,7 +3,7 @@ use thiserror::Error;
 use self::ast::types::EmoteTextProcessError;
 
 mod ast;
-mod parser;
+pub mod parser;
 mod types;
 
 pub use self::ast::condition;
