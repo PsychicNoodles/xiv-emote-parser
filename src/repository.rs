@@ -285,6 +285,7 @@ pub enum Language {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "json", derive(Deserialize))]
+#[allow(unused)]
 pub struct LogMessageData {
     name: String,
     targeted: String,
