@@ -241,6 +241,10 @@ impl LogMessageRepository {
     pub fn contains_emote(&self, name: &str) -> bool {
         self.messages.contains_key(name)
     }
+
+    pub fn emote_list(&self) -> impl Iterator<Item = &String> {
+        self.messages.keys()
+    }
 }
 
 pub struct EmoteMessages<'a> {
