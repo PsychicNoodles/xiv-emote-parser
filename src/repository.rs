@@ -5,7 +5,7 @@ use {serde_derive::Deserialize, serde_json};
 use reqwest;
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use thiserror::Error;
 
@@ -37,9 +37,9 @@ pub struct LogMessagePair {
     pub untargeted: String,
 }
 
-type MessagesMap = HashMap<String, Rc<EmoteData>>;
+type MessagesMap = HashMap<String, Arc<EmoteData>>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LogMessageRepository {
     messages: MessagesMap,
     #[cfg(any(feature = "xivapi"))]
@@ -57,7 +57,7 @@ impl LogMessageRepository {
             .map_err(LogMessageRepositoryError::InvalidJsonInput)?
             .into_iter()
             .fold(HashMap::new(), |mut map, data| {
-                let value = Rc::new(EmoteData {
+                let value = Arc::new(EmoteData {
                     name: data.name,
                     en: LogMessagePair {
                         targeted: data.en.targeted,
@@ -128,8 +128,6 @@ impl LogMessageRepository {
 
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
     fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
-        use std::convert;
-
         data.results
             .into_iter()
             .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
@@ -140,7 +138,7 @@ impl LogMessageRepository {
                     name: Some(name),
                 } = result
                 {
-                    let data = Rc::new(EmoteData {
+                    let data = Arc::new(EmoteData {
                         name,
                         en: LogMessagePair {
                             targeted: targeted.text_en,
@@ -158,7 +156,7 @@ impl LogMessageRepository {
                         text_command.command_ja,
                     ]
                     .into_iter()
-                    .filter_map(convert::identity)
+                    .flatten()
                     .for_each(|cmd| {
                         map.insert(cmd, data.clone());
                     })
@@ -233,13 +231,13 @@ impl LogMessageRepository {
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    pub fn messages(&self, name: &str) -> Result<&Rc<EmoteData>> {
+    pub fn messages(&self, name: &str) -> Result<&Arc<EmoteData>> {
         self.messages
             .get(name)
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    pub fn all_messages(&self) -> Vec<&Rc<EmoteData>> {
+    pub fn all_messages(&self) -> Vec<&Arc<EmoteData>> {
         self.messages.values().collect()
     }
 
