@@ -5,7 +5,7 @@ use {serde_derive::Deserialize, serde_json};
 use reqwest;
 
 use log::*;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -24,21 +24,34 @@ pub enum LogMessageRepositoryError {
 
 pub type Result<T> = std::result::Result<T, LogMessageRepositoryError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmoteData {
+    pub id: u32,
     pub name: String,
     pub en: LogMessagePair,
     pub ja: LogMessagePair,
 }
 
-#[derive(Debug, Clone)]
+impl Ord for EmoteData {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl PartialOrd for EmoteData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "json", derive(Deserialize))]
 pub struct LogMessagePair {
     pub targeted: String,
     pub untargeted: String,
 }
 
-type MessagesMap = HashMap<String, Arc<EmoteData>>;
+type MessagesMap = BTreeMap<String, Arc<EmoteData>>;
 
 #[derive(Debug, Clone)]
 pub struct LogMessageRepository {
@@ -57,8 +70,9 @@ impl LogMessageRepository {
         let messages = serde_json::from_str::<Vec<LogMessageData>>(json)
             .map_err(LogMessageRepositoryError::InvalidJsonInput)?
             .into_iter()
-            .fold(HashMap::new(), |mut map, data| {
+            .fold(BTreeMap::new(), |mut map, data| {
                 let value = Arc::new(EmoteData {
+                    id: data.id,
                     name: data.name,
                     en: LogMessagePair {
                         targeted: data.en.targeted,
@@ -92,7 +106,7 @@ impl LogMessageRepository {
         query.push(("snake_case".to_string(), "1".to_string()));
         query.push((
             "columns".to_string(),
-            "LogMessageTargeted,LogMessageUntargeted,Name,TextCommand".to_string(),
+            "LogMessageTargeted,LogMessageUntargeted,Name,TextCommand,ID".to_string(),
         ));
         if let Some(key) = api_key {
             trace!("adding xivapi private key");
@@ -131,15 +145,17 @@ impl LogMessageRepository {
     fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
         data.results
             .into_iter()
-            .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
+            .fold::<MessagesMap, _>(BTreeMap::new(), |mut map, result| {
                 if let self::xivapi::EmoteData {
                     log_message_targeted: Some(targeted),
                     log_message_untargeted: Some(untargeted),
                     text_command: Some(text_command),
                     name: Some(name),
+                    id: Some(id),
                 } = result
                 {
                     let data = Arc::new(EmoteData {
+                        id,
                         name,
                         en: LogMessagePair {
                             targeted: targeted.text_en,
@@ -179,7 +195,9 @@ impl LogMessageRepository {
             .query(&query)
             .send()
             .await?;
-        let data: self::xivapi::Response = serde_json::from_str(res.text().await?.as_str())?;
+        let text = res.text().await;
+        trace!("loaded from xivapi: {:?}", text);
+        let data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
 
         Ok(Self::parse_xivapi(data))
     }
@@ -269,6 +287,7 @@ mod xivapi {
         pub log_message_untargeted: Option<LogMessageData>,
         pub text_command: Option<TextCommand>,
         pub name: Option<String>,
+        pub id: Option<u32>,
     }
 
     #[derive(Debug, Clone, Deserialize)]
@@ -300,6 +319,7 @@ pub enum Language {
 #[cfg_attr(feature = "json", derive(Deserialize))]
 #[allow(unused)]
 pub struct LogMessageData {
+    pub id: u32,
     pub name: String,
     pub commands: Vec<String>,
     pub en: LogMessagePair,
