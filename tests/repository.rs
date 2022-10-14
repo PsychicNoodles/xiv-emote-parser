@@ -2,6 +2,7 @@ use xiv_emote_parser::repository::{LogMessageRepository, LogMessageRepositoryErr
 
 #[test]
 fn can_load_from_xivapi() -> Result<(), LogMessageRepositoryError> {
+    pretty_env_logger::init();
     let repo = LogMessageRepository::from_xivapi_blocking(None)?;
     assert!(repo.emote_list().count() > 0);
     Ok(())

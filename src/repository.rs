@@ -146,6 +146,7 @@ impl LogMessageRepository {
         data.results
             .into_iter()
             .fold::<MessagesMap, _>(BTreeMap::new(), |mut map, result| {
+                debug!("processing from xivapi: {:?}", result);
                 if let self::xivapi::EmoteData {
                     log_message_targeted: Some(targeted),
                     log_message_untargeted: Some(untargeted),
@@ -174,6 +175,7 @@ impl LogMessageRepository {
                     ]
                     .into_iter()
                     .flatten()
+                    .filter(|cmd| !cmd.is_empty())
                     .for_each(|cmd| {
                         trace!("{} => {}", cmd, data.name);
                         map.insert(cmd, data.clone());
