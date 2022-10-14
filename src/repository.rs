@@ -4,7 +4,8 @@ use {serde_derive::Deserialize, serde_json};
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
 use reqwest;
 
-use std::{collections::HashMap, convert};
+use std::collections::HashMap;
+use std::rc::Rc;
 
 use thiserror::Error;
 
@@ -23,14 +24,24 @@ pub enum LogMessageRepositoryError {
 pub type Result<T> = std::result::Result<T, LogMessageRepositoryError>;
 
 #[derive(Debug, Clone)]
-struct LogMessagePair {
-    targeted: String,
-    untargeted: String,
+pub struct EmoteData {
+    pub name: String,
+    pub en: LogMessagePair,
+    pub ja: LogMessagePair,
 }
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Deserialize))]
+pub struct LogMessagePair {
+    pub targeted: String,
+    pub untargeted: String,
+}
+
+type MessagesMap = HashMap<String, Rc<EmoteData>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct LogMessageRepository {
-    messages: HashMap<String, HashMap<Language, LogMessagePair>>,
+    messages: MessagesMap,
     #[cfg(any(feature = "xivapi"))]
     client: reqwest::Client,
     #[cfg(any(feature = "xivapi_blocking"))]
@@ -45,23 +56,23 @@ impl LogMessageRepository {
         let messages = serde_json::from_str::<Vec<LogMessageData>>(json)
             .map_err(LogMessageRepositoryError::InvalidJsonInput)?
             .into_iter()
-            .fold(
-                HashMap::<String, HashMap<Language, LogMessagePair>>::new(),
-                |mut map, data| {
-                    map.entry(data.name)
-                        .and_modify(|m| {
-                            m.insert(
-                                data.language,
-                                LogMessagePair {
-                                    targeted: data.targeted,
-                                    untargeted: data.untargeted,
-                                },
-                            );
-                        })
-                        .or_default();
-                    map
-                },
-            );
+            .fold(HashMap::new(), |mut map, data| {
+                let value = Rc::new(EmoteData {
+                    name: data.name,
+                    en: LogMessagePair {
+                        targeted: data.en.targeted,
+                        untargeted: data.en.untargeted,
+                    },
+                    ja: LogMessagePair {
+                        targeted: data.ja.targeted,
+                        untargeted: data.ja.untargeted,
+                    },
+                });
+                for command in data.commands {
+                    map.insert(command, value.clone());
+                }
+                map
+            });
         Ok(LogMessageRepository {
             messages,
             #[cfg(feature = "xivapi")]
@@ -116,34 +127,39 @@ impl LogMessageRepository {
     }
 
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
-    fn parse_xivapi(
-        data: self::xivapi::Response,
-    ) -> HashMap<String, HashMap<Language, LogMessagePair>> {
+    fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
         data.results
             .into_iter()
-            .fold(HashMap::new(), |mut map, result| {
+            .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
                 if let self::xivapi::EmoteData {
                     log_message_targeted: Some(targeted),
                     log_message_untargeted: Some(untargeted),
+                    text_command: Some(text_command),
                     name: Some(name),
                 } = result
                 {
-                    let mut m = HashMap::new();
-                    m.insert(
-                        Language::En,
-                        LogMessagePair {
+                    let data = Rc::new(EmoteData {
+                        name,
+                        en: LogMessagePair {
                             targeted: targeted.text_en,
                             untargeted: untargeted.text_en,
                         },
-                    );
-                    m.insert(
-                        Language::Ja,
-                        LogMessagePair {
+                        ja: LogMessagePair {
                             targeted: targeted.text_ja,
                             untargeted: untargeted.text_ja,
                         },
-                    );
-                    map.insert(name.to_lowercase(), m);
+                    });
+                    [
+                        text_command.alias_en,
+                        text_command.alias_ja,
+                        text_command.command_en,
+                        text_command.command_ja,
+                    ]
+                    .into_iter()
+                    .filter_map(convert::identity)
+                    .for_each(|cmd| {
+                        map.insert(cmd, data.clone());
+                    })
                 }
                 map
             })
@@ -153,7 +169,7 @@ impl LogMessageRepository {
     async fn load_xivapi(
         client: &reqwest::Client,
         query: &[(String, String)],
-    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
+    ) -> Result<MessagesMap> {
         let res = client
             .get("https://xivapi.com/emote")
             .query(&query)
@@ -168,7 +184,7 @@ impl LogMessageRepository {
     fn load_xivapi_blocking(
         client: &reqwest::blocking::Client,
         query: &[(String, String)],
-    ) -> Result<HashMap<String, HashMap<Language, LogMessagePair>>> {
+    ) -> Result<MessagesMap> {
         let res = client
             .get("https://xivapi.com/emote")
             .query(&query)
@@ -198,44 +214,31 @@ impl LogMessageRepository {
     pub fn targeted(&self, name: &str, language: Language) -> Result<&str> {
         self.messages
             .get(name)
-            .and_then(|m| m.get(&language))
-            .map(|p| p.targeted.as_str())
+            .map(|data| match language {
+                Language::En => data.en.targeted.as_str(),
+                Language::Ja => data.ja.targeted.as_str(),
+            })
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
     pub fn untargeted(&self, name: &str, language: Language) -> Result<&str> {
         self.messages
             .get(name)
-            .and_then(|m| m.get(&language))
-            .map(|p| p.untargeted.as_str())
+            .map(|data| match language {
+                Language::En => data.en.untargeted.as_str(),
+                Language::Ja => data.ja.untargeted.as_str(),
+            })
             .ok_or(LogMessageRepositoryError::NotFound)
     }
 
-    fn extract_messages(m: &HashMap<Language, LogMessagePair>) -> Result<EmoteMessages> {
-        let en = m
-            .get(&Language::En)
-            .ok_or(LogMessageRepositoryError::NotFound)?;
-        let jp = m
-            .get(&Language::Ja)
-            .ok_or(LogMessageRepositoryError::NotFound)?;
-        Ok(EmoteMessages {
-            en_targeted: en.targeted.as_str(),
-            en_untargeted: en.untargeted.as_str(),
-            jp_targeted: jp.targeted.as_str(),
-            jp_untargeted: jp.untargeted.as_str(),
-        })
-    }
-
-    pub fn messages(&self, name: &str) -> Result<EmoteMessages> {
+    pub fn messages(&self, name: &str) -> Result<&Rc<EmoteData>> {
         self.messages
             .get(name)
             .ok_or(LogMessageRepositoryError::NotFound)
-            .map(Self::extract_messages)
-            .and_then(convert::identity)
     }
 
-    pub fn all_messages(&self) -> Result<Vec<EmoteMessages>> {
-        self.messages.values().map(Self::extract_messages).collect()
+    pub fn all_messages(&self) -> Vec<&Rc<EmoteData>> {
+        self.messages.values().collect()
     }
 
     pub fn contains_emote(&self, name: &str) -> bool {
@@ -245,13 +248,6 @@ impl LogMessageRepository {
     pub fn emote_list(&self) -> impl Iterator<Item = &String> {
         self.messages.keys()
     }
-}
-
-pub struct EmoteMessages<'a> {
-    pub en_targeted: &'a str,
-    pub en_untargeted: &'a str,
-    pub jp_targeted: &'a str,
-    pub jp_untargeted: &'a str,
 }
 
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
@@ -267,6 +263,7 @@ mod xivapi {
     pub struct EmoteData {
         pub log_message_targeted: Option<LogMessageData>,
         pub log_message_untargeted: Option<LogMessageData>,
+        pub text_command: Option<TextCommand>,
         pub name: Option<String>,
     }
 
@@ -274,6 +271,14 @@ mod xivapi {
     pub struct LogMessageData {
         pub text_en: String,
         pub text_ja: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct TextCommand {
+        pub alias_en: Option<String>,
+        pub alias_ja: Option<String>,
+        pub command_en: Option<String>,
+        pub command_ja: Option<String>,
     }
 }
 
@@ -291,8 +296,8 @@ pub enum Language {
 #[cfg_attr(feature = "json", derive(Deserialize))]
 #[allow(unused)]
 pub struct LogMessageData {
-    name: String,
-    targeted: String,
-    untargeted: String,
-    language: Language,
+    pub name: String,
+    pub commands: Vec<String>,
+    pub en: LogMessagePair,
+    pub ja: LogMessagePair,
 }
