@@ -84,18 +84,24 @@ impl LogMessageRepository {
         })
     }
 
-    #[cfg(feature = "xivapi")]
-    pub async fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
-        let client = reqwest::Client::new();
+    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    fn prep_query(api_key: Option<String>) -> Vec<(String, String)> {
         let mut query = Vec::with_capacity(3);
         query.push(("snake_case".to_string(), "1".to_string()));
         query.push((
             "columns".to_string(),
-            "LogMessageTargeted,LogMessageUntargeted,Name".to_string(),
+            "LogMessageTargeted,LogMessageUntargeted,Name,TextCommand".to_string(),
         ));
         if let Some(key) = api_key {
             query.push(("private_key".to_string(), key));
         }
+        query
+    }
+
+    #[cfg(feature = "xivapi")]
+    pub async fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
+        let client = reqwest::Client::new();
+        let query = Self::prep_query(api_key);
         Ok(LogMessageRepository {
             messages: Self::load_xivapi(&client, &query).await?,
             client,
@@ -108,15 +114,7 @@ impl LogMessageRepository {
     #[cfg(feature = "xivapi_blocking")]
     pub fn from_xivapi_blocking(api_key: Option<String>) -> Result<LogMessageRepository> {
         let client = reqwest::blocking::Client::new();
-        let mut query = Vec::with_capacity(3);
-        query.push(("snake_case".to_string(), "1".to_string()));
-        query.push((
-            "columns".to_string(),
-            "LogMessageTargeted,LogMessageUntargeted,Name".to_string(),
-        ));
-        if let Some(key) = api_key {
-            query.push(("private_key".to_string(), key));
-        }
+        let query = Self::prep_query(api_key);
         Ok(LogMessageRepository {
             messages: Self::load_xivapi_blocking(&client, &query)?,
             #[cfg(feature = "xivapi")]
