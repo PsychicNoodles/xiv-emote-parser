@@ -128,6 +128,8 @@ impl LogMessageRepository {
 
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
     fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
+        use std::convert;
+
         data.results
             .into_iter()
             .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
