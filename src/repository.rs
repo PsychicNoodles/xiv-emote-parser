@@ -5,7 +5,7 @@ use {serde_derive::Deserialize, serde_json};
 use reqwest;
 
 use log::*;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -51,7 +51,7 @@ pub struct LogMessagePair {
     pub untargeted: String,
 }
 
-type MessagesMap = BTreeMap<String, Arc<EmoteData>>;
+type MessagesMap = HashMap<String, Arc<EmoteData>>;
 
 #[derive(Debug, Clone)]
 pub struct LogMessageRepository {
@@ -70,7 +70,7 @@ impl LogMessageRepository {
         let messages = serde_json::from_str::<Vec<LogMessageData>>(json)
             .map_err(LogMessageRepositoryError::InvalidJsonInput)?
             .into_iter()
-            .fold(BTreeMap::new(), |mut map, data| {
+            .fold(HashMap::new(), |mut map, data| {
                 let value = Arc::new(EmoteData {
                     id: data.id,
                     name: data.name,
@@ -145,7 +145,7 @@ impl LogMessageRepository {
     fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
         data.results
             .into_iter()
-            .fold::<MessagesMap, _>(BTreeMap::new(), |mut map, result| {
+            .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
                 debug!("processing from xivapi: {:?}", result);
                 if let self::xivapi::EmoteData {
                     log_message_targeted: Some(targeted),
@@ -271,6 +271,12 @@ impl LogMessageRepository {
 
     pub fn emote_list(&self) -> impl Iterator<Item = &String> {
         self.messages.keys()
+    }
+
+    pub fn emote_list_by_id(&self) -> impl Iterator<Item = &String> {
+        let mut values: Vec<_> = self.messages.iter().collect();
+        values.sort_unstable_by(|(_, v1), (_, v2)| v1.id.cmp(&v2.id));
+        values.into_iter().map(|(k, _)| k)
     }
 }
 
