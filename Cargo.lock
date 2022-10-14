@@ -1145,6 +1145,7 @@ dependencies = [
 name = "xiv-emote-parser"
 version = "0.1.0"
 dependencies = [
+ "log",
  "pest",
  "pest_consume",
  "pest_derive",

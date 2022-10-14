@@ -1,3 +1,4 @@
+use log::*;
 use strum_macros::EnumString;
 use thiserror::Error;
 
@@ -75,8 +76,10 @@ impl ConditionTexts {
                 .iter()
                 .all(|ConditionState { cond, is_true }| cond_answer.as_bool(cond) == *is_true)
             {
+                trace!("cond = true, calling handler");
                 text_handler(text)
             } else {
+                trace!("cond = false, skipping handler");
                 None
             }
         })
@@ -94,7 +97,10 @@ impl ConditionTexts {
                 .iter()
                 .all(|ConditionState { cond, is_true }| cond_answer.as_bool(cond) == *is_true)
             {
-                text_handler(text);
+                trace!("cond = true, calling handler");
+                text_handler(text)
+            } else {
+                trace!("cond = false, skipping handler");
             }
         });
     }

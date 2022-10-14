@@ -4,6 +4,7 @@ use {serde_derive::Deserialize, serde_json};
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
 use reqwest;
 
+use log::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -69,6 +70,7 @@ impl LogMessageRepository {
                     },
                 });
                 for command in data.commands {
+                    trace!("{} => {}", command, value.name);
                     map.insert(command, value.clone());
                 }
                 map
@@ -93,6 +95,7 @@ impl LogMessageRepository {
             "LogMessageTargeted,LogMessageUntargeted,Name,TextCommand".to_string(),
         ));
         if let Some(key) = api_key {
+            trace!("adding xivapi private key");
             query.push(("private_key".to_string(), key));
         }
         query
@@ -156,8 +159,11 @@ impl LogMessageRepository {
                     .into_iter()
                     .flatten()
                     .for_each(|cmd| {
+                        trace!("{} => {}", cmd, data.name);
                         map.insert(cmd, data.clone());
                     })
+                } else {
+                    trace!("ignoring invalid emote data ({:?})", result);
                 }
                 map
             })
