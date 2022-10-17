@@ -4,6 +4,9 @@ use {serde_derive::Deserialize, serde_json};
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
 use reqwest;
 
+#[cfg(feature = "xivapi")]
+use {std::time::Duration, tokio::time::sleep};
+
 use log::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +23,14 @@ pub enum LogMessageRepositoryError {
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
     #[error("A network error occurred")]
     Network(#[from] reqwest::Error),
+    #[cfg(feature = "xivapi_blocking")]
+    #[error("Request limit reached, wait before trying again")]
+    RequestLimit,
 }
+
+// a conservative limit, but emotes should not require more than a small handful of pages
+#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+pub const XIVAPI_REQUEST_LIMIT: u32 = 15;
 
 pub type Result<T> = std::result::Result<T, LogMessageRepositoryError>;
 
@@ -142,8 +152,8 @@ impl LogMessageRepository {
     }
 
     #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
-    fn parse_xivapi(data: self::xivapi::Response) -> MessagesMap {
-        data.results
+    fn parse_xivapi(results: Vec<self::xivapi::EmoteData>) -> MessagesMap {
+        results
             .into_iter()
             .fold::<MessagesMap, _>(HashMap::new(), |mut map, result| {
                 debug!("processing from xivapi: {:?}", result);
@@ -192,16 +202,30 @@ impl LogMessageRepository {
         client: &reqwest::Client,
         query: &[(String, String)],
     ) -> Result<MessagesMap> {
-        let res = client
-            .get("https://xivapi.com/emote")
-            .query(&query)
-            .send()
-            .await?;
-        let text = res.text().await;
-        trace!("loaded from xivapi: {:?}", text);
-        let data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
+        let mut results = Vec::new();
+        let mut req_count = 0;
+        loop {
+            req_count += 1;
+            if req_count >= XIVAPI_REQUEST_LIMIT {
+                sleep(Duration::from_secs(2)).await;
+            }
+            let page_query = ("page".to_string(), req_count.to_string());
+            debug!("loading page {}", page_query.1);
+            let res = client
+                .get("https://xivapi.com/emote")
+                .query(&[&query, &[page_query][..]].concat())
+                .send()
+                .await?;
+            let text = res.text().await;
+            trace!("loaded from xivapi: {:?}", text);
+            let mut data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
+            results.append(&mut data.results);
+            if data.pagination.page_next.is_none() {
+                break;
+            }
+        }
 
-        Ok(Self::parse_xivapi(data))
+        Ok(Self::parse_xivapi(results))
     }
 
     #[cfg(feature = "xivapi_blocking")]
@@ -209,13 +233,29 @@ impl LogMessageRepository {
         client: &reqwest::blocking::Client,
         query: &[(String, String)],
     ) -> Result<MessagesMap> {
-        let res = client
-            .get("https://xivapi.com/emote")
-            .query(&query)
-            .send()?;
-        let data: self::xivapi::Response = serde_json::from_str(res.text()?.as_str())?;
+        let mut results = Vec::new();
+        let mut req_count = 0;
+        loop {
+            req_count += 1;
+            if req_count >= XIVAPI_REQUEST_LIMIT {
+                return Err(LogMessageRepositoryError::RequestLimit);
+            }
+            let page_query = ("page".to_string(), req_count.to_string());
+            debug!("loading page {}", page_query.1);
+            let res = client
+                .get("https://xivapi.com/emote")
+                .query(&[&query, &[page_query][..]].concat())
+                .send()?;
+            let text = res.text();
+            trace!("loaded from xivapi: {:?}", text);
+            let mut data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
+            results.append(&mut data.results);
+            if data.pagination.page_next.is_none() {
+                break;
+            }
+        }
 
-        Ok(Self::parse_xivapi(data))
+        Ok(Self::parse_xivapi(results))
     }
 
     #[cfg(feature = "xivapi")]
@@ -286,7 +326,13 @@ mod xivapi {
 
     #[derive(Debug, Clone, Deserialize)]
     pub struct Response {
+        pub pagination: Pagination,
         pub results: Vec<EmoteData>,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct Pagination {
+        pub page_next: Option<u32>,
     }
 
     #[derive(Debug, Clone, Deserialize)]

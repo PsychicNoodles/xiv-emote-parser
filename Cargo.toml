@@ -23,10 +23,11 @@ serde_derive = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
 
 reqwest = { version = "0.11", features = ["json"], optional = true }
+tokio = { version = "1", features = ["time"], optional = true }
 
 [features]
 json = ["dep:serde", "dep:serde_derive", "dep:serde_json"]
-xivapi = ["reqwest", "json"]
+xivapi = ["reqwest", "json", "tokio"]
 xivapi_blocking = ["reqwest/blocking", "json"]
 async = []
 

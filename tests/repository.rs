@@ -4,6 +4,7 @@ use xiv_emote_parser::repository::{LogMessageRepository, LogMessageRepositoryErr
 fn can_load_from_xivapi() -> Result<(), LogMessageRepositoryError> {
     pretty_env_logger::init();
     let repo = LogMessageRepository::from_xivapi_blocking(None)?;
+    println!("loaded {} emotes", repo.emote_list().count());
     assert!(repo.emote_list().count() > 0);
     Ok(())
 }
