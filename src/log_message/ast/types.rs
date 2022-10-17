@@ -85,6 +85,30 @@ impl ConditionTexts {
         })
     }
 
+    pub fn map_texts_mut<'a, F, R, C>(
+        &'a self,
+        cond_answer: &'a C,
+        mut text_handler: F,
+    ) -> impl Iterator<Item = R> + '_
+    where
+        F: FnMut(&Text) -> Option<R> + 'a,
+        C: ConditionAnswer,
+    {
+        self.0.iter().filter_map(move |ctxt| {
+            let ConditionText { conds, text } = ctxt;
+            if conds
+                .iter()
+                .all(|ConditionState { cond, is_true }| cond_answer.as_bool(cond) == *is_true)
+            {
+                trace!("cond = true, calling handler");
+                text_handler(text)
+            } else {
+                trace!("cond = false, skipping handler");
+                None
+            }
+        })
+    }
+
     /// Executes text_handler for each [Text] value of contained [ConditionText]s
     pub fn for_each_texts<'a, F, C>(&'a self, cond_answer: &'a C, mut text_handler: F)
     where
