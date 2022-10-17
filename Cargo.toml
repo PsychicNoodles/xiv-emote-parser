@@ -1,6 +1,6 @@
 [package]
 name = "xiv-emote-parser"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Mattori Birnbaum <mattori.birnbaum@gmail.com>"]
 description = "Parses log messages for emotes from FFXIV into a sequence of message parts"
