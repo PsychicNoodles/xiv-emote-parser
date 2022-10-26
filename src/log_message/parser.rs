@@ -24,7 +24,7 @@ where
     let condition_texts = extract_condition_texts(log_msg)?;
 
     Ok(condition_texts
-        .map_texts(answers, |text| match text {
+        .filter_map_texts(answers, |text| match text {
             Text::Dynamic(d) => Some(answers.as_str(d)),
             Text::Static(s) => Some(Cow::from(s.to_string())),
         })
