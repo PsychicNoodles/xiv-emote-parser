@@ -1,6 +1,6 @@
 [package]
 name = "xiv-emote-parser"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["Mattori Birnbaum <mattori.birnbaum@gmail.com>"]
 description = "Parses log messages for emotes from FFXIV into a sequence of message parts"
@@ -22,7 +22,7 @@ serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
 
-reqwest = { version = "0.11", features = ["json"], optional = true }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false, optional = true }
 tokio = { version = "1", features = ["time"], optional = true }
 
 [features]
