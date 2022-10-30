@@ -318,6 +318,13 @@ impl LogMessageRepository {
         values.sort_unstable_by(|(_, v1), (_, v2)| v1.id.cmp(&v2.id));
         values.into_iter().map(|(k, _)| k)
     }
+
+    pub fn find_emote_id(&self, name: &str) -> Option<u32> {
+        self.messages
+            .iter()
+            .find(|msg| msg.0 == name)
+            .map(|msg| msg.1.id)
+    }
 }
 
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
