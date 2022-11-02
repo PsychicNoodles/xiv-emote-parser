@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use serde_json::Value;
 use thiserror::Error;
 use xiv_emote_parser::log_message::{
     condition::{Character, Gender, LogMessageAnswers},
@@ -76,11 +75,22 @@ struct MessageTestError {
 
 #[test]
 fn can_parse_all_emotes() -> Result<(), impl Error> {
-    let data = include_str!("../emote-22106.json");
-    let v: Value = serde_json::from_str(data).expect("couldn't parse test json");
-    let emotes = v["Results"]
-        .as_array()
-        .expect("test json didn't contain Results array");
+    let data = [
+        include_str!("../emote-221102-1.json"),
+        include_str!("../emote-221102-2.json"),
+        include_str!("../emote-221102-3.json"),
+    ];
+    let emotes: Vec<_> = data
+        .into_iter()
+        .map(|d| serde_json::from_str(d).expect("couldn't parse test json"))
+        .flat_map(|v: serde_json::Value| {
+            v["Results"]
+                .as_array()
+                .cloned()
+                .expect("test json didn't contain Results array")
+                .into_iter()
+        })
+        .collect();
 
     let char1 = Character::new("K'haldru Alaba", Gender::Female, true, true);
     let char2 = Character::new("Puruo Jelly", Gender::Male, true, false);
@@ -95,6 +105,7 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
     emotes
         .into_iter()
         .map(|emote| {
+            println!("{:?}", emote);
             let name = emote["Name"]
                 .as_str()
                 .expect("emote didn't have a name")
@@ -115,8 +126,9 @@ fn can_parse_all_emotes() -> Result<(), impl Error> {
             })
             .collect::<Vec<_>>();
 
-            for message in messages {
+            for (i, message) in messages.iter().enumerate() {
                 for answers in &answerses {
+                    println!("testing {} {} {:?}", name, i, answers);
                     let text = process_log_message(message, answers);
                     match text {
                         Err(e) => {
