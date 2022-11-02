@@ -61,7 +61,7 @@ pub struct LogMessagePair {
     pub untargeted: String,
 }
 
-type MessagesMap = HashMap<String, Arc<EmoteData>>;
+pub type MessagesMap = HashMap<String, Arc<EmoteData>>;
 
 #[derive(Debug, Clone)]
 pub struct LogMessageRepository {
@@ -130,7 +130,7 @@ impl LogMessageRepository {
         let client = reqwest::Client::new();
         let query = Self::prep_query(api_key);
         Ok(LogMessageRepository {
-            messages: Self::load_xivapi(&client, &query).await?,
+            messages: Self::parse_xivapi(Self::load_xivapi(&client, &query).await?),
             client,
             #[cfg(feature = "xivapi_blocking")]
             client_blocking: reqwest::blocking::Client::new(),
@@ -143,7 +143,7 @@ impl LogMessageRepository {
         let client = reqwest::blocking::Client::new();
         let query = Self::prep_query(api_key);
         Ok(LogMessageRepository {
-            messages: Self::load_xivapi_blocking(&client, &query)?,
+            messages: Self::parse_xivapi(Self::load_xivapi_blocking(&client, &query)?),
             #[cfg(feature = "xivapi")]
             client: reqwest::Client::new(),
             client_blocking: client,
@@ -198,10 +198,10 @@ impl LogMessageRepository {
     }
 
     #[cfg(feature = "xivapi")]
-    async fn load_xivapi(
+    pub async fn load_xivapi(
         client: &reqwest::Client,
         query: &[(String, String)],
-    ) -> Result<MessagesMap> {
+    ) -> Result<Vec<self::xivapi::EmoteData>> {
         let mut results = Vec::new();
         let mut req_count = 0;
         loop {
@@ -225,14 +225,14 @@ impl LogMessageRepository {
             }
         }
 
-        Ok(Self::parse_xivapi(results))
+        Ok(results)
     }
 
     #[cfg(feature = "xivapi_blocking")]
-    fn load_xivapi_blocking(
+    pub fn load_xivapi_blocking(
         client: &reqwest::blocking::Client,
         query: &[(String, String)],
-    ) -> Result<MessagesMap> {
+    ) -> Result<Vec<self::xivapi::EmoteData>> {
         let mut results = Vec::new();
         let mut req_count = 0;
         loop {
@@ -255,18 +255,21 @@ impl LogMessageRepository {
             }
         }
 
-        Ok(Self::parse_xivapi(results))
+        Ok(results)
     }
 
     #[cfg(feature = "xivapi")]
     pub async fn reload_messages(&mut self) -> Result<()> {
-        self.messages = Self::load_xivapi(&self.client, &self.query).await?;
+        self.messages = Self::parse_xivapi(Self::load_xivapi(&self.client, &self.query).await?);
         Ok(())
     }
 
     #[cfg(feature = "xivapi_blocking")]
     pub fn reload_messages_blocking(&mut self) -> Result<()> {
-        self.messages = Self::load_xivapi_blocking(&self.client_blocking, &self.query)?;
+        self.messages = Self::parse_xivapi(Self::load_xivapi_blocking(
+            &self.client_blocking,
+            &self.query,
+        )?);
         Ok(())
     }
 
@@ -325,10 +328,14 @@ impl LogMessageRepository {
             .find(|msg| msg.0 == name)
             .map(|msg| msg.1.id)
     }
+
+    pub fn messages_map(&self) -> &MessagesMap {
+        &self.messages
+    }
 }
 
 #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
-mod xivapi {
+pub mod xivapi {
     use serde_derive::Deserialize;
 
     #[derive(Debug, Clone, Deserialize)]
