@@ -1,11 +1,8 @@
 #[cfg(feature = "json")]
 use {serde_derive::Deserialize, serde_json};
 
-#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
-use reqwest;
-
 #[cfg(feature = "xivapi")]
-use {std::time::Duration, tokio::time::sleep};
+use {std::time::Duration, ureq};
 
 use log::*;
 use std::collections::HashMap;
@@ -17,19 +14,22 @@ use thiserror::Error;
 pub enum LogMessageRepositoryError {
     #[error("Message not found")]
     NotFound,
-    #[cfg(any(feature = "json", feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(feature = "json")]
     #[error("Invalid json input string")]
     InvalidJsonInput(#[from] serde_json::Error),
-    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(feature = "xivapi")]
     #[error("A network error occurred")]
-    Network(#[from] reqwest::Error),
-    #[cfg(feature = "xivapi_blocking")]
+    Network(#[from] ureq::Error),
+    #[cfg(feature = "xivapi")]
     #[error("Request limit reached, wait before trying again")]
     RequestLimit,
+    #[cfg(feature = "xivapi")]
+    #[error("Io error while requesting data")]
+    Io(#[from] std::io::Error),
 }
 
 // a conservative limit, but emotes should not require more than a small handful of pages
-#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+#[cfg(feature = "xivapi")]
 pub const XIVAPI_REQUEST_LIMIT: u32 = 15;
 
 pub type Result<T> = std::result::Result<T, LogMessageRepositoryError>;
@@ -66,11 +66,7 @@ pub type MessagesMap = HashMap<String, Arc<EmoteData>>;
 #[derive(Debug, Clone)]
 pub struct LogMessageRepository {
     messages: MessagesMap,
-    #[cfg(any(feature = "xivapi"))]
-    client: reqwest::Client,
-    #[cfg(any(feature = "xivapi_blocking"))]
-    client_blocking: reqwest::blocking::Client,
-    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(feature = "xivapi")]
     query: Vec<(String, String)>,
 }
 
@@ -102,15 +98,11 @@ impl LogMessageRepository {
         Ok(LogMessageRepository {
             messages,
             #[cfg(feature = "xivapi")]
-            client: reqwest::Client::new(),
-            #[cfg(feature = "xivapi_blocking")]
-            client_blocking: reqwest::blocking::Client::new(),
-            #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
             query: Vec::with_capacity(3),
         })
     }
 
-    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(feature = "xivapi")]
     fn prep_query(api_key: Option<String>) -> Vec<(String, String)> {
         let mut query = Vec::with_capacity(3);
         query.push(("snake_case".to_string(), "1".to_string()));
@@ -126,32 +118,15 @@ impl LogMessageRepository {
     }
 
     #[cfg(feature = "xivapi")]
-    pub async fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
-        let client = reqwest::Client::new();
+    pub fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
         let query = Self::prep_query(api_key);
         Ok(LogMessageRepository {
-            messages: Self::parse_xivapi(Self::load_xivapi(&client, &query).await?),
-            client,
-            #[cfg(feature = "xivapi_blocking")]
-            client_blocking: reqwest::blocking::Client::new(),
+            messages: Self::parse_xivapi(Self::load_xivapi(&query)?),
             query,
         })
     }
 
-    #[cfg(feature = "xivapi_blocking")]
-    pub fn from_xivapi_blocking(api_key: Option<String>) -> Result<LogMessageRepository> {
-        let client = reqwest::blocking::Client::new();
-        let query = Self::prep_query(api_key);
-        Ok(LogMessageRepository {
-            messages: Self::parse_xivapi(Self::load_xivapi_blocking(&client, &query)?),
-            #[cfg(feature = "xivapi")]
-            client: reqwest::Client::new(),
-            client_blocking: client,
-            query,
-        })
-    }
-
-    #[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+    #[cfg(feature = "xivapi")]
     fn parse_xivapi(results: Vec<self::xivapi::EmoteData>) -> MessagesMap {
         results
             .into_iter()
@@ -198,56 +173,24 @@ impl LogMessageRepository {
     }
 
     #[cfg(feature = "xivapi")]
-    pub async fn load_xivapi(
-        client: &reqwest::Client,
-        query: &[(String, String)],
-    ) -> Result<Vec<self::xivapi::EmoteData>> {
+    pub fn load_xivapi(query: &[(String, String)]) -> Result<Vec<self::xivapi::EmoteData>> {
+        let agent = ureq::AgentBuilder::new().build();
         let mut results = Vec::new();
         let mut req_count = 0;
         loop {
             req_count += 1;
             if req_count >= XIVAPI_REQUEST_LIMIT {
-                sleep(Duration::from_secs(2)).await;
+                std::thread::sleep(Duration::from_secs(2));
             }
             let page_query = ("page".to_string(), req_count.to_string());
             debug!("loading page {}", page_query.1);
-            let res = client
-                .get("https://xivapi.com/emote")
-                .query(&[&query, &[page_query][..]].concat())
-                .send()
-                .await?;
-            let text = res.text().await;
-            trace!("loaded from xivapi: {:?}", text);
-            let mut data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
-            results.append(&mut data.results);
-            if data.pagination.page_next.is_none() {
-                break;
+            let mut req = agent.get("https://xivapi.com/emote");
+            for q in query {
+                req = req.query(&q.0, &q.1);
             }
-        }
-
-        Ok(results)
-    }
-
-    #[cfg(feature = "xivapi_blocking")]
-    pub fn load_xivapi_blocking(
-        client: &reqwest::blocking::Client,
-        query: &[(String, String)],
-    ) -> Result<Vec<self::xivapi::EmoteData>> {
-        let mut results = Vec::new();
-        let mut req_count = 0;
-        loop {
-            req_count += 1;
-            if req_count >= XIVAPI_REQUEST_LIMIT {
-                return Err(LogMessageRepositoryError::RequestLimit);
-            }
-            let page_query = ("page".to_string(), req_count.to_string());
-            debug!("loading page {}", page_query.1);
-            let res = client
-                .get("https://xivapi.com/emote")
-                .query(&[&query, &[page_query][..]].concat())
-                .send()?;
-            let text = res.text();
-            trace!("loaded from xivapi: {:?}", text);
+            let res = req.query("page", &req_count.to_string()).call()?;
+            let text = res.into_string();
+            debug!("loaded from xivapi: {:?}", text);
             let mut data: self::xivapi::Response = serde_json::from_str(text?.as_str())?;
             results.append(&mut data.results);
             if data.pagination.page_next.is_none() {
@@ -259,17 +202,8 @@ impl LogMessageRepository {
     }
 
     #[cfg(feature = "xivapi")]
-    pub async fn reload_messages(&mut self) -> Result<()> {
-        self.messages = Self::parse_xivapi(Self::load_xivapi(&self.client, &self.query).await?);
-        Ok(())
-    }
-
-    #[cfg(feature = "xivapi_blocking")]
-    pub fn reload_messages_blocking(&mut self) -> Result<()> {
-        self.messages = Self::parse_xivapi(Self::load_xivapi_blocking(
-            &self.client_blocking,
-            &self.query,
-        )?);
+    pub fn reload_messages(&mut self) -> Result<()> {
+        self.messages = Self::parse_xivapi(Self::load_xivapi(&self.query)?);
         Ok(())
     }
 
@@ -334,7 +268,7 @@ impl LogMessageRepository {
     }
 }
 
-#[cfg(any(feature = "xivapi", feature = "xivapi_blocking"))]
+#[cfg(feature = "xivapi")]
 pub mod xivapi {
     use serde_derive::Deserialize;
 
