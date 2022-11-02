@@ -1,6 +1,6 @@
-use log::*;
 use strum_macros::EnumString;
 use thiserror::Error;
+use tracing::*;
 
 use super::condition::{Condition, ConditionError, DynamicText, DynamicTextError};
 pub use super::condition_texts::ConditionTexts;

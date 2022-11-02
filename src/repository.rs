@@ -4,9 +4,9 @@ use {serde_derive::Deserialize, serde_json};
 #[cfg(feature = "xivapi")]
 use {std::time::Duration, ureq};
 
-use log::*;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::*;
 
 use thiserror::Error;
 
