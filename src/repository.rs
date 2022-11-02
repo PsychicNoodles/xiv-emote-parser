@@ -103,7 +103,7 @@ impl LogMessageRepository {
     }
 
     #[cfg(feature = "xivapi")]
-    fn prep_query(api_key: Option<String>) -> Vec<(String, String)> {
+    pub fn prep_xivapi_query(api_key: Option<String>) -> Vec<(String, String)> {
         let mut query = Vec::with_capacity(3);
         query.push(("snake_case".to_string(), "1".to_string()));
         query.push((
@@ -119,7 +119,7 @@ impl LogMessageRepository {
 
     #[cfg(feature = "xivapi")]
     pub fn from_xivapi(api_key: Option<String>) -> Result<LogMessageRepository> {
-        let query = Self::prep_query(api_key);
+        let query = Self::prep_xivapi_query(api_key);
         Ok(LogMessageRepository {
             messages: Self::parse_xivapi(Self::load_xivapi(&query)?),
             query,
