@@ -310,6 +310,11 @@ impl TryFrom<Tag> for DynamicText {
                     name: FuncName::PlayerParameter,
                     params: p2,
                 }), Param::Num(1), Param::Num(1)]
+                // this SheetEn usage seems to only appear in Fist Bump (115) untargeted en
+                | [Param::Obj(Obj::ObjStr), Param::Num(2), Param::Function(Function {
+                    name: FuncName::PlayerParameter,
+                    params: p2,
+                }), Param::Num(2), Param::Num(1)]
                     if matches!(&p2[..], [Param::Num(7)]) =>
                 {
                     Ok(DynamicText::PlayerOriginNameEn)
